@@ -1,0 +1,104 @@
+# Building, testing and signing
+
+## Prerequisites
+
+- JDK 17 (Java/Kotlin target 17); JBR 21 was also used successfully locally.
+- SDK Platform 35; Android Build Tools 34.0.0 (AGP 8.7.3 default), platform-tools.
+- NDK 27.2.12479018, CMake 3.22.1 (install through Android Studio SDK Manager).
+- Git, Git LFS; Bash with curl, unzip, tar and sha256sum for native dependency preparation.
+- An ARM64 Android 8.0+ device for actual Pocket TTS inference. No exact Android Studio release is pinned; use one compatible with AGP 8.7.3.
+
+## Required model inputs
+
+Run `git lfs install` before cloning, then `git lfs pull`. The root
+`PocketTTS-english-FP32.zip` must be the actual approximately 198 MiB ZIP,
+not a small LFS pointer. It contains the five ONNX graphs, tokenizer, Alba
+reference and attribution. Gradle packages them automatically. The DeepFilter
+graph/notices under `app/src/main/assets/deepfilter/` are also required.
+
+Neither model is downloaded by the installed app. Build-time downloads are different.
+
+## Prepare ONNX Runtime
+
+From a Bash terminal at the repository root:
+
+```bash
+bash scripts/prepare_android_native_deps.sh
+```
+
+The script downloads/checksums ONNX Runtime Android 1.20.0 and extracts ARM64
+binaries and matching headers into Git-ignored directories. On Windows use
+Git Bash with the required utilities, or WSL against this same checkout.
+Do not open/build the unused `speech-android-main/` reference checkout.
+
+Set `ANDROID_HOME` to the local SDK, or let Android Studio create ignored
+`local.properties`. Set `JAVA_HOME` to your JDK. CMake fetches pinned
+SentencePiece and dr_libs sources during the first native build.
+
+## Build
+
+```bash
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+```
+
+PowerShell equivalent:
+
+```powershell
+.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+```
+
+Output: `app/build/outputs/apk/debug/app-debug.apk`.
+
+For Android Studio: open the repository root, configure the Gradle JDK, install
+the SDK/NDK/CMake prerequisites, sync, and run the `app` configuration.
+
+## Device checks
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:connectedDebugAndroidTest
+adb logcat -b crash -d
+```
+
+First launch prepares built-in English/Alba locally. No language-pack picker
+is needed. Test Reader playback and Android system TTS settings. Microphone
+permission is only needed for recording. UI/media/DeepFilter tests run on the
+available Android 16 x86 emulator; Pocket ONNX synthesis tests skip that emulator
+because ARM translation is unsupported. Use ARM64 hardware before release.
+
+## Release signing
+
+Keep the keystore outside the repository. Supply all four environment variables
+through your local shell or secret manager (do not commit an environment script):
+
+- `POCKETTTS_KEYSTORE_PATH`: absolute path to the private keystore
+- `POCKETTTS_KEYSTORE_PASSWORD`
+- `POCKETTTS_KEY_ALIAS`
+- `POCKETTTS_KEY_PASSWORD`
+
+Then:
+
+```bash
+./gradlew :app:assembleRelease :app:lintRelease
+```
+
+Output with signing configured: `app/build/outputs/apk/release/app-release.apk`.
+Without all four variables: `app-release-unsigned.apk`. Do not distribute an
+unsigned APK as installable. Use Android Build Tools:
+
+```bash
+apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+```
+
+Copy a tested signed APK to ignored `release-assets/` as
+`Pocket-TTS-v0.5.2-release.apk`. Copying/renaming does not alter APK contents
+or signing. Keep the key for all subsequent updates. A differently signed
+debug/old release cannot be updated in place; uninstalling removes private
+app data, so back up first.
+
+Version name/code are in `app/build.gradle.kts`: currently 0.5.2 / 22.
+Increment versionCode for updates, and choose the corresponding versionName.
+No release signing secrets are included or needed for debug builds.
+
+For GitHub web/CLI publishing steps, see [README → APK releases](../README.md#apk-releases).
+These are manual instructions, not automation that uploads anything.

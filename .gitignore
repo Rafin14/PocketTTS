@@ -1,0 +1,57 @@
+# Gradle / Android Studio / native build output
+.gradle/
+.kotlin/
+build/
+.cxx/
+.externalNativeBuild/
+.idea/
+*.iml
+local.properties
+captures/
+*.apk
+*.aab
+*.idsig
+release-assets/
+
+# Reproducibly downloaded ONNX Runtime
+/app/src/main/jniLibs/
+/app/src/main/third_party/onnxruntime/
+
+# Unused reference checkout, not an app module; required DSP is vendored in app/.
+/speech-android-main/
+# Duplicate adb-pull staging copies; curated images live directly in docs/screenshots/.
+/docs/screenshots/readme-screenshots/
+
+# Developer environments / caches / editor and OS temporary files
+.venv*/
+__pycache__/
+*.py[cod]
+.cache/
+.vscode/
+.claude/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*.tmp
+*.bak
+*.log
+hs_err_pid*
+
+# Signing keys, credentials and machine-local environment files
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*
+*.env
+keystore.properties
+signing-secret*
+
+# Never blanket-ignore ONNX, tokenizer, ZIP, audio, or test-video assets.
+# PocketTTS-english-FP32.zip and app/src/main/assets/deepfilter/ are required.
+# Store personal recordings outside this repository.
