@@ -12,10 +12,6 @@ defined by Kyutai Pocket TTS. They do not contain user-imported recordings.
 | Pack | Voice | Upstream recording | License and attribution |
 | --- | --- | --- | --- |
 | English | Alba | [`alba-mackenna/casual.wav`](https://huggingface.co/kyutai/tts-voices/blob/main/alba-mackenna/casual.wav) | Voice performance by Alba MacKenna; CC BY 4.0 |
-| German | Jürgen | [`de-DE-juergen.mp3`](https://huggingface.co/kyutai/pocket-tts/blob/64ab7d24c479d736a83b8cc666c4a776fca30fda/de-DE-juergen.mp3) | Kyutai Pocket TTS model repository; CC BY 4.0 |
-| Italian | Giovanni | [`common_voice_it_36520747-enhanced-v2.mp3`](https://huggingface.co/kyutai/pocket-tts/blob/64ab7d24c479d736a83b8cc666c4a776fca30fda/common_voice_it_36520747-enhanced-v2.mp3) | Kyutai Pocket TTS model repository; CC BY 4.0 |
-| Portuguese | Rafael | [`g-Vi8PgmSY0-enhanced-v2.wav`](https://huggingface.co/kyutai/pocket-tts/blob/64ab7d24c479d736a83b8cc666c4a776fca30fda/g-Vi8PgmSY0-enhanced-v2.wav) | Kyutai Pocket TTS model repository; CC BY 4.0 |
-| Spanish | Lola | [`common_voice_es_19762977-enhanced-v2.mp3`](https://huggingface.co/kyutai/pocket-tts/blob/64ab7d24c479d736a83b8cc666c4a776fca30fda/common_voice_es_19762977-enhanced-v2.mp3) | Kyutai Pocket TTS model repository; CC BY 4.0 |
 
 License: https://creativecommons.org/licenses/by/4.0/
 
