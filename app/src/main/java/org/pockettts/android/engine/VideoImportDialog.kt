@@ -129,7 +129,7 @@ internal class VideoImportDialog(
             item {
                 if (extracting || (info == null && error == null)) LinearProgressIndicator(Modifier.fillMaxWidth())
                 if (info != null && !extracting) {
-                    if (player.state.key != null) PreviewControls(player, expanded = true)
+                    if (player.state.key != null) PreviewControls(player)
                     else OutlinedButton(onClick = { resumePosition = 0; prepare(true) }, modifier = Modifier.fillMaxWidth()) { Text("Play video") }
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("video-error")) }

@@ -110,7 +110,11 @@ class PocketTtsService : TextToSpeechService() {
             val maxBlockBytes = callback.maxBufferSize.coerceAtLeast(2).let { it - (it % 2) }
             val ok = runCatching { PocketEngine.withEngine(this, pack) { tts ->
                 if (generation.get() != requestGeneration) return@withEngine false
-                tts.synthesize(text, voice.fileName, object : NativePocketTts.AudioSink {
+                // Resolve the stable ID inside the engine lock: an audio edit may have
+                // committed a new reference after the request's initial lookup.
+                val reference = ModelPackRepository.find(this, pack.id)?.voices?.firstOrNull { it.id == voice.id }
+                    ?: return@withEngine false
+                tts.synthesize(text, reference.fileName, object : NativePocketTts.AudioSink {
                 override fun onAudio(samples: FloatArray): Boolean {
                     if (generation.get() != requestGeneration) return false
                     val pcm = ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)

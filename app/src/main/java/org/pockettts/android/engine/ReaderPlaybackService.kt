@@ -22,7 +22,8 @@ class ReaderPlaybackService : Service() {
         val positionMs: Long = 0, val availableMs: Long = 0, val complete: Boolean = false,
         val title: String = "Pocket TTS Reader", val exporting: Boolean = false,
         val document: String? = null, val rangeStart: Int = -1, val rangeEnd: Int = -1,
-        val waveform: List<Float> = emptyList(), val waveformBinSamples: Long = 0, val waveformSamples: Long = 0
+        val waveform: List<Float> = emptyList(), val waveformBinSamples: Long = 0, val waveformSamples: Long = 0,
+        val canPrevious: Boolean = false, val canNext: Boolean = false
     )
     interface Listener { fun onReaderStateChanged(snapshot: Snapshot) }
     inner class LocalBinder : Binder() { fun service() = this@ReaderPlaybackService }
@@ -43,6 +44,7 @@ class ReaderPlaybackService : Service() {
     private var session: Session? = null
     private var player: MediaPlayer? = null
     private var prepared = false
+    private var seeking = false
     private var index = 0
     private var offsetMs = 0L
     private var playWhenReady = false
@@ -78,8 +80,8 @@ class ReaderPlaybackService : Service() {
                 override fun onPause() { pause() }
                 override fun onStop() { stop() }
                 override fun onSeekTo(pos: Long) { seekTo(pos) }
-                override fun onSkipToNext() { session?.let { if (index + 1 < it.files.size) seekTo(it.timeline.start(index + 1)) } }
-                override fun onSkipToPrevious() { session?.let { seekTo(it.timeline.start((index - 1).coerceAtLeast(0))) } }
+                override fun onSkipToNext() { nextChunk() }
+                override fun onSkipToPrevious() { previousChunk() }
                 override fun onCustomAction(action: String, extras: Bundle?) { if (action == STOP) stop() }
             }, main)
         }
@@ -121,6 +123,8 @@ class ReaderPlaybackService : Service() {
         val next = Session(File(cacheDir, "reader-audio/${UUID.randomUUID()}"),
             text.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(64) ?: "Pocket TTS Reader", speed.coerceIn(.5f, 2f), text)
         session = next
+        next.ranges += ReaderTextChunker.ranges(text, (ModelPackRepository.maxTextTokens(this, pack) * 4).coerceIn(120, 800))
+        next.total = next.ranges.size
         playWhenReady = true
         state = State.LOADING
         lastMessage = null
@@ -136,7 +140,7 @@ class ReaderPlaybackService : Service() {
             wake.acquire(30 * 60 * 1000L)
             check(s.directory.mkdirs())
             val peaks = AudioPeaks()
-            val chunks = ReaderTextChunker.ranges(text, (ModelPackRepository.maxTextTokens(this, pack) * 4).coerceIn(120, 800))
+            val chunks = s.ranges.toList()
                 for ((i, range) in chunks.withIndex()) {
                     val chunk = text.substring(range.start, range.end)
                     if (s.cancelled.get()) break
@@ -166,20 +170,12 @@ class ReaderPlaybackService : Service() {
                     val binSamples = peaks.binSamples()
                     val sampleCount = peaks.samples
                     main.post {
-                        if (session === s && !destroyed && !s.cancelled.get()) {
-                            s.files += file
-                            s.ranges += range
-                            s.peaks = envelope; s.binSamples = binSamples; s.samples = sampleCount
-                            s.timeline.append((bytes * 1000 / (PcmWav.RATE * 2)).coerceAtLeast(1))
-                            if (player == null && playWhenReady) openChunk(index, offsetMs)
-                            publish()
-                        }
+                        acceptChunk(s, file, (bytes * 1000 / (PcmWav.RATE * 2)).coerceAtLeast(1), envelope, binSamples, sampleCount)
                     }
                 }
             main.post {
                 if (session === s && !destroyed && !s.cancelled.get()) {
                     s.complete = true
-                    s.total = s.files.size
                     if (player == null && index >= s.files.size && playWhenReady) finishPlayback()
                     publish()
                 }
@@ -188,6 +184,14 @@ class ReaderPlaybackService : Service() {
             Log.e("PocketTTS", "READER_GENERATION_FAILED", error)
             main.post { if (session === s && !destroyed && !s.cancelled.get()) fail(userError(error)) }
         } finally { if (wake.isHeld) wake.release() }
+    }
+    private fun acceptChunk(s: Session, file: File, durationMs: Long, envelope: List<Float>, binSamples: Long, sampleCount: Long) {
+        if (session !== s || destroyed || s.cancelled.get()) return
+        s.files += file
+        s.peaks = envelope; s.binSamples = binSamples; s.samples = sampleCount
+        s.timeline.append(durationMs)
+        if (player == null && index in s.files.indices && state in listOf(State.LOADING, State.PAUSED)) openChunk(index, offsetMs)
+        publish()
     }
     private fun openChunk(next: Int, offset: Long = 0) {
         val s = session ?: return
@@ -207,10 +211,10 @@ class ReaderPlaybackService : Service() {
             audio.setOnPreparedListener {
                 if (player !== it) return@setOnPreparedListener
                 prepared = true
-                it.setOnSeekCompleteListener { ready -> if (player === ready) { offsetMs = ready.currentPosition.toLong(); startPrepared() } }
-                if (offsetMs > 0) it.seekTo(offsetMs, MediaPlayer.SEEK_CLOSEST) else startPrepared()
+                it.setOnSeekCompleteListener { ready -> if (player === ready) { seeking = false; offsetMs = ready.currentPosition.toLong(); startPrepared() } }
+                if (offsetMs > 0) { seeking = true; it.seekTo(offsetMs, MediaPlayer.SEEK_CLOSEST) } else startPrepared()
             }
-            audio.setOnCompletionListener { if (player === it) openChunk(index + 1) }
+            audio.setOnCompletionListener { completed -> completeChunk(s, completed, next) }
             audio.setOnErrorListener { failed, what, extra ->
                 if (player === failed) {
                     Log.e("PocketTTS", "READER_AUDIO_FAILED $what/$extra")
@@ -222,9 +226,12 @@ class ReaderPlaybackService : Service() {
         } catch (error: Exception) { Log.e("PocketTTS", "READER_OPEN_FAILED", error); fail(getString(R.string.reader_error_output)) }
         publish()
     }
+    private fun completeChunk(s: Session, completed: MediaPlayer, chunk: Int) {
+        if (player === completed && session === s && index == chunk && prepared && !seeking) openChunk(chunk + 1)
+    }
     private fun startPrepared() {
         val audio = player ?: return
-        if (!prepared) return
+        if (!prepared || seeking) return
         if (playWhenReady) {
             try {
                 audio.playbackParams = PlaybackParams().setSpeed(session?.speed ?: 1f).setPitch(1f)
@@ -273,11 +280,23 @@ class ReaderPlaybackService : Service() {
         state = State.STOPPED; lastMessage = null
         abandonFocus(); publish(); endForeground()
     }
+    fun discardAudio() { stop(); disposeSession(); publish() }
     fun seekTo(positionMs: Long) {
         val s = session ?: return
         if (s.files.isEmpty()) return
         val (target, offset) = s.timeline.locate(positionMs)
         openChunk(target, offset)
+    }
+    fun nextChunk() {
+        val s = session ?: return
+        if (state !in listOf(State.PLAYING, State.LOADING, State.PAUSED) || index + 1 >= s.total) return
+        openChunk(index + 1)
+    }
+    fun previousChunk() {
+        val s = session ?: return
+        if (state !in listOf(State.PLAYING, State.LOADING, State.PAUSED) || s.total == 0) return
+        val position = if (prepared) runCatching { player?.currentPosition?.toLong() ?: offsetMs }.getOrDefault(offsetMs) else offsetMs
+        openChunk(if (position > 0) index.coerceAtMost(s.total - 1) else (index - 1).coerceAtLeast(0))
     }
     private fun finishPlayback() {
         releasePlayer(); playWhenReady = false; state = State.IDLE
@@ -309,12 +328,14 @@ class ReaderPlaybackService : Service() {
     private fun snapshot(): Snapshot {
         val s = session
         val position = if (prepared) runCatching { player?.currentPosition?.toLong() ?: offsetMs }.getOrDefault(offsetMs) else offsetMs
-        val range = if (prepared && (state == State.PLAYING || state == State.PAUSED)) s?.ranges?.getOrNull(index) else null
-        return Snapshot(state, if (s == null) 0 else (index + 1).coerceAtMost(s.files.size), s?.total ?: 0, lastMessage,
+        val range = if (state in listOf(State.PLAYING, State.PAUSED, State.LOADING)) s?.ranges?.getOrNull(index) else null
+        val navigable = state in listOf(State.PLAYING, State.PAUSED, State.LOADING)
+        return Snapshot(state, if (s == null) 0 else (index + 1).coerceAtMost(s.total), s?.total ?: 0, lastMessage,
             (s?.timeline?.start(index.coerceAtMost(s.files.size)) ?: 0) + position,
             s?.timeline?.duration ?: 0, s?.complete ?: false, s?.title ?: "Pocket TTS Reader", exporting,
             s?.document, range?.start ?: -1, range?.end ?: -1,
-            if (state == State.STOPPED || state == State.ERROR) emptyList() else s?.peaks ?: emptyList(), s?.binSamples ?: 0, s?.samples ?: 0)
+            if (state == State.STOPPED || state == State.ERROR) emptyList() else s?.peaks ?: emptyList(), s?.binSamples ?: 0, s?.samples ?: 0,
+            navigable && (index > 0 || position > 0), navigable && index + 1 < (s?.total ?: 0))
     }
     @android.annotation.SuppressLint("NotificationPermission") // MediaStyle notifications with a session token are exempt on Android 13+.
     private fun publish(notification: Boolean = true) {
@@ -323,8 +344,8 @@ class ReaderPlaybackService : Service() {
         var actions = PlaybackState.ACTION_STOP or PlaybackState.ACTION_PLAY_PAUSE
         actions = actions or if (playWhenReady) PlaybackState.ACTION_PAUSE else PlaybackState.ACTION_PLAY
         if (value.availableMs > 0) actions = actions or PlaybackState.ACTION_SEEK_TO
-        if (index > 0) actions = actions or PlaybackState.ACTION_SKIP_TO_PREVIOUS
-        if (index + 1 < (session?.files?.size ?: 0)) actions = actions or PlaybackState.ACTION_SKIP_TO_NEXT
+        if (value.canPrevious) actions = actions or PlaybackState.ACTION_SKIP_TO_PREVIOUS
+        if (value.canNext) actions = actions or PlaybackState.ACTION_SKIP_TO_NEXT
         val androidState = when (state) {
             State.PLAYING -> PlaybackState.STATE_PLAYING
             State.PAUSED -> PlaybackState.STATE_PAUSED
@@ -371,9 +392,10 @@ class ReaderPlaybackService : Service() {
     }
     private fun requestFocus(): Boolean {
         if (focus != null) return true
-        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attributes)
+        lateinit var request: AudioFocusRequest
+        request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attributes)
             .setWillPauseWhenDucked(true).setOnAudioFocusChangeListener({ change ->
-                if (change < 0) pause() // Speech pauses for ducking too; resume is explicit.
+                if (focus === request && change < 0) pause() // Ignore a queued loss from an abandoned focus request.
             }, main).build()
         if (getSystemService(AudioManager::class.java).requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return false
         focus = request; return true
@@ -381,7 +403,7 @@ class ReaderPlaybackService : Service() {
     private fun abandonFocus() { focus?.let { getSystemService(AudioManager::class.java).abandonAudioFocusRequest(it) }; focus = null }
     private fun releasePlayer() {
         val old = player
-        player = null; prepared = false
+        player = null; prepared = false; seeking = false
         old?.release()
     }
     private fun fail(message: String) {

@@ -146,7 +146,6 @@
     <string name="error_invalid_wav">Select a valid WAV file</string>
     <string name="rec_unsaved" tools:ignore="MissingTranslation">Leaving this screen discards unsaved audio.</string>
     <string name="rec_permission_settings" tools:ignore="MissingTranslation">Open microphone permission settings</string>
-    <string name="preview_expand" tools:ignore="MissingTranslation">Expand player</string>
     <string name="add_voice_help" tools:ignore="MissingTranslation">Create a voice from one speaker: record, import a WAV, or extract audio from a video.</string>
     <string name="add_import_help" tools:ignore="MissingTranslation">Choose a WAV, trim and preview it, then name your voice. Sources can be up to 30 minutes and 256 MB.</string>
     <string name="rec_guidance" tools:ignore="MissingTranslation">Speak naturally for 3–30 seconds in a quiet place. Use one speaker, with no music or background conversation.</string>

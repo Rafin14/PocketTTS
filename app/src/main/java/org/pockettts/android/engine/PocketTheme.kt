@@ -83,12 +83,12 @@ internal fun PocketTheme(mode: String = "system", content: @Composable () -> Uni
 }
 
 @Composable
-internal fun GlassCard(modifier: Modifier = Modifier, selected: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+internal fun GlassCard(modifier: Modifier = Modifier, selected: Boolean = false, padding: androidx.compose.ui.unit.Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
     // Intentional no-blur fallback: no offscreen captures, text blur, or per-frame GPU effects.
     Surface(modifier, shape = MaterialTheme.shapes.large,
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else LocalGlass.current.card,
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else LocalGlass.current.border)) {
-        Column(Modifier.padding(20.dp), content = content)
+        Column(Modifier.padding(padding), content = content)
     }
 }

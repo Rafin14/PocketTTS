@@ -1,24 +1,27 @@
-# Actual application screenshots
+# Application screenshots
 
-Captured from the current application on an API 36 emulator at
-1344 × 2992, portrait, Dark theme, default text size. No artwork/mockups or
-synthetic playback state was substituted for the app UI.
+The gallery contains actual app captures from an ARM64 Android 16 phone at
+1272 × 2772, using Dark theme and default text size.
 
-`ReadmeScreenshotsTest` captures the Reader, Voices, Add Voice, microphone-permission
-interface, local video preview, real extracted waveform, real DeepFilter review,
-Settings and About. The example video uses the attributed bundled Alba sample
-and a generated test pattern. Images contain no private recordings or text.
+Screens show Reader, Voices, Add Voice, recording, video extraction, trimming,
+enhancement review, Settings and About. The demonstration video uses an
+attributed Alba reference with a generated test pattern. No private voice
+recordings or document text are used.
 
-Native TTS-playing/highlighting is not pictured because the available x86
-emulator cannot reliably run the ARM64 Pocket ONNX stack. Use an ARM64 phone
-for that screenshot; do not fake a Playing state.
+## Refresh the gallery
 
-Reproduce with `:app:assembleDebugAndroidTest`, install the app/test APKs, then:
+Use a dedicated test installation. Build and install the debug app and
+instrumentation APKs, then run:
 
 ```text
 adb shell am instrument -w -r -e class org.pockettts.android.engine.ReadmeScreenshotsTest org.pockettts.android.engine.test/androidx.test.runner.AndroidJUnitRunner
 adb pull /sdcard/Android/data/org.pockettts.android.engine/files/readme-screenshots/reader.png docs/screenshots/reader.png
 ```
 
-Repeat the pull for each captured filename. Use a test device containing no personal
-data. Inspect every image before publishing. Wait until the test finishes before pulling.
+Wait for the test to finish, then pull each generated image. Inspect the screens
+for layout, contrast and private information before publishing. Capture actual
+app states rather than fabricating playback or processing results.
+
+For the optional isolated test package, use `org.pockettts.android.engine.qa`
+in the device file path and `org.pockettts.android.engine.qa.test` for the runner.
+See [isolated testing](../BUILDING.md#isolated-device-testing).

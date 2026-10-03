@@ -17,7 +17,7 @@ preserve the locale but discard the explicit voice name.
 
 If Layla remains on **Loading** or plays the wrong voice:
 
-- Verify that the matching language pack and voice appear in this app.
+- Verify that the bundled English model is ready and the intended voice appears in this app.
 - Save the selection after changing model parameters.
 - Restart Layla after importing or removing voices.
 - Confirm Android still lists this app as the preferred TTS engine.

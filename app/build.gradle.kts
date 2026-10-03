@@ -83,6 +83,10 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            // Device QA can coexist with an installed APK signed by another key.
+            if (providers.gradleProperty("isolatedDeviceTest").orNull == "true") applicationIdSuffix = ".qa"
+        }
         getByName("release") {
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")

@@ -60,7 +60,8 @@ class MainActivity : ComponentActivity() {
         private set
     internal lateinit var preview: SamplePreview
         private set
-    internal var previewExpanded by mutableStateOf(false)
+    internal var renameTarget by mutableStateOf<Pair<ModelPack, PackVoice>?>(null)
+    internal var renameError by mutableStateOf<String?>(null)
     private var normalUi = false
     private var recordingPackId: String? = null
     private var importPackId: String? = null
@@ -279,6 +280,8 @@ class MainActivity : ComponentActivity() {
     internal fun pauseReader() { readerService?.pause() }
     internal fun stopReader() { readerService?.stop() }
     internal fun seekReader(position: Long) { readerService?.seekTo(position) }
+    internal fun nextReaderChunk() { readingHighlight.resetFollow(); readerService?.nextChunk() }
+    internal fun previousReaderChunk() { readingHighlight.resetFollow(); readerService?.previousChunk() }
     internal fun exportAudio() {
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE); type = "audio/wav"; putExtra(Intent.EXTRA_TITLE, "Pocket TTS.wav")
@@ -290,7 +293,6 @@ class MainActivity : ComponentActivity() {
     }
     internal fun previewVoice(pack: ModelPack, voice: PackVoice, recordingVersion: Boolean? = null) {
         if (!blocked()) {
-            if (preview.state.key == null) previewExpanded = false
             detail = null
             val source = recordingVersion?.let { ModelPackRepository.recordingSource(pack, voice, it) }
                 ?: File(pack.voicesDir, voice.fileName)
@@ -300,7 +302,45 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    internal fun stopPreview() { previewExpanded = false; preview.close() }
+    internal fun stopPreview() { preview.close() }
+    internal fun beginRename(pack: ModelPack, voice: PackVoice) {
+        if (blocked() || !voice.userCreated) return
+        stopPreview(); detail = null; renameError = null; renameTarget = pack to voice
+    }
+    internal fun renameVoice(name: String) {
+        val (pack, voice) = renameTarget ?: return
+        if (busy) return
+        busy = true; renameError = null
+        thread(name = "pockettts-rename") {
+            val result = runCatching { ModelPackRepository.renameVoice(applicationContext, pack.id, voice.id, name) }
+            runOnUiThread {
+                if (!isDestroyed) {
+                    busy = false
+                    if (result.isSuccess) { renameTarget = null; refreshData() }
+                    else renameError = result.exceptionOrNull()?.message ?: "Could not rename voice."
+                }
+            }
+        }
+    }
+    internal fun editVoice(pack: ModelPack, voice: PackVoice) {
+        if (blocked() || !voice.userCreated) return
+        stopPreview(); detail = null; sheet = null
+        recordingDialog?.close()
+        recordingDialog = VoiceRecordingDialog(this, pack.id,
+            { readerService?.discardAudio(); refreshData(); tab = 1 }, { recordingDialog = null }, {}, editingVoice = voice)
+    }
+    internal fun restoreVoice(pack: ModelPack, voice: PackVoice) {
+        if (blocked() || !voice.userCreated || !voice.audioEdited) return
+        confirmation = Confirmation("Restore Original", "Restore ${voice.displayName} to its original source audio? Current edits will be removed.", "Restore") {
+            if (!blocked()) {
+                stopPreview(); detail = null; busy = true
+                thread(name = "pockettts-restore") {
+                    val result = runCatching { ModelPackRepository.restoreVoice(applicationContext, pack.id, voice.id) }
+                    runOnUiThread { if (!isDestroyed) { busy = false; if (result.isSuccess) readerService?.discardAudio(); refreshData(if (result.isFailure) result.exceptionOrNull()?.message ?: "Restore failed." else "Original audio restored.", result.isFailure) } }
+                }
+            }
+        }
+    }
     internal fun deleteVoice(pack: ModelPack, voice: PackVoice) {
         if (blocked() || !voice.userCreated) return
         confirmation = Confirmation(getString(R.string.voice_delete_title, voice.displayName),

@@ -1,61 +1,57 @@
 package org.pockettts.android.engine
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import java.util.Locale
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal fun audioTime(ms: Int) = String.format(Locale.ROOT, "%02d:%02d", ms / 60000, ms / 1000 % 60)
 
 @Composable
-internal fun PreviewMiniPlayer(app: MainActivity, modifier: Modifier) {
-    GlassCard(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.large).testTag("preview-mini")
-        .pointerInput(Unit) {
-            var distance = 0f
-            detectVerticalDragGestures(onDragStart = { distance = 0f }, onVerticalDrag = { change, delta ->
-                distance += delta
-                if (distance < -48.dp.toPx()) { change.consume(); app.previewExpanded = true }
-            })
-        }) {
-        TextButton(onClick = { app.previewExpanded = true }, modifier = Modifier.fillMaxWidth().testTag("preview-expand")) {
-            Text(app.preview.state.title + " · " + stringResource(R.string.preview_expand), style = MaterialTheme.typography.titleMedium)
-        }
-        PreviewControls(app.preview, expanded = false)
-    }
-}
-
-@Composable
-internal fun PreviewControls(player: SamplePreview, expanded: Boolean) {
+internal fun PreviewControls(player: SamplePreview) {
     val state = player.state
+    var peaks by remember(state.key) { mutableStateOf<List<Float>>(emptyList()) }
+    val cancellation = remember(state.key) { AtomicBoolean(false) }
+    DisposableEffect(state.key) {
+        onDispose { cancellation.set(true) }
+    }
+    LaunchedEffect(state.key) {
+        val file = state.key?.let(::File)
+        if (file?.isFile == true) {
+            try {
+                peaks = withContext(Dispatchers.IO) { runCatching { WavSamples.inspect(file, cancellation).peaks }.getOrDefault(emptyList()) }
+            } finally { cancellation.set(true) }
+        }
+    }
     var seeking by remember(state.key) { mutableStateOf<Float?>(null) }
     Column(Modifier.fillMaxWidth()) {
         Text(stringResource(if (state.loading) R.string.reader_loading else if (state.playing) R.string.reader_playing_notification else R.string.reader_paused),
             color = if (state.playing) LocalGlass.current.success else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (expanded) Slider(value = seeking ?: state.positionMs.toFloat().coerceAtMost(state.durationMs.toFloat()),
+        if (peaks.isNotEmpty()) PlaybackWaveform(peaks, 1L, peaks.size.toLong(), state.positionMs.toLong(), state.durationMs.toLong(),
+            { player.seekTo(it.toInt()) }, "preview-waveform", "Sample waveform")
+        Slider(value = seeking ?: state.positionMs.toFloat().coerceAtMost(state.durationMs.toFloat()),
             valueRange = 0f..state.durationMs.coerceAtLeast(1).toFloat(), enabled = !state.loading && state.durationMs > 0,
             onValueChange = { seeking = it }, onValueChangeFinished = { seeking?.let { player.seekTo(it.toInt()) }; seeking = null },
             modifier = Modifier.semantics { contentDescription = "Preview position" })
-        else LinearProgressIndicator(progress = { if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f },
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = player::toggle, enabled = !state.loading, modifier = Modifier.testTag("preview-toggle")) {
                 Text(stringResource(if (state.playing) R.string.reader_pause else R.string.reader_resume))
             }
             TextButton(onClick = player::close, modifier = Modifier.testTag("preview-stop")) { Text(stringResource(R.string.reader_stop)) }
         }
-        if (expanded) Text("${audioTime(state.positionMs)} / ${audioTime(state.durationMs)}", style = MaterialTheme.typography.labelMedium)
-        if (expanded) SpeedControl(player.speed, player::changeSpeed)
+        Text("${audioTime(state.positionMs)} / ${audioTime(state.durationMs)}", style = MaterialTheme.typography.labelMedium)
+        SpeedControl(player.speed, player::changeSpeed)
     }
 }
 

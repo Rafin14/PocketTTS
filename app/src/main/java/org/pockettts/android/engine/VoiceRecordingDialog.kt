@@ -29,7 +29,8 @@ internal class VoiceRecordingDialog(
     private val activity: Activity, private val packId: String,
     private val saved: () -> Unit, private val dismissed: () -> Unit,
     private val requestPermission: () -> Unit, private val imported: android.net.Uri? = null,
-    private val extracted: File? = null, private val chooseAnother: (() -> Unit)? = null
+    private val extracted: File? = null, private val chooseAnother: (() -> Unit)? = null,
+    private val editingVoice: PackVoice? = null
 ) {
     enum class Phase { PERMISSION_REQUIRED, PERMISSION_DENIED, READY, RECORDING, PROCESSING, TRIMMING, DENOISING, STOPPED, SAVING, FAILED }
     private val main = Handler(Looper.getMainLooper())
@@ -45,15 +46,15 @@ internal class VoiceRecordingDialog(
         private set
     internal var levels by mutableStateOf(List(48) { 0f })
         private set
-    private var name by mutableStateOf("")
+    private var name by mutableStateOf(editingVoice?.displayName ?: "")
     private var nameError by mutableStateOf(false)
     private var previewError by mutableStateOf(false)
     private var saveError by mutableStateOf(false)
     private val file = File(activity.cacheDir, "voice-${UUID.randomUUID()}.wav")
     private val enhanced = File(activity.cacheDir, "voice-enhanced-${UUID.randomUUID()}.wav")
     private val importedOriginal = File(activity.cacheDir, "voice-import-${UUID.randomUUID()}.wav")
-    private val externalSample get() = imported != null || extracted != null
-    private val original get() = extracted ?: if (imported != null) importedOriginal else file
+    private val externalSample get() = imported != null || extracted != null || editingVoice != null
+    private val original get() = extracted ?: if (imported != null || editingVoice != null) importedOriginal else file
     private val trimmed = File(activity.cacheDir, "voice-trim-${UUID.randomUUID()}.wav")
     private var trimInfo by mutableStateOf<WavSamples.Info?>(null)
     internal var trimStart by mutableIntStateOf(0)
@@ -73,12 +74,16 @@ internal class VoiceRecordingDialog(
     private var beforeLevels by mutableStateOf<List<Float>>(emptyList())
     private var afterLevels by mutableStateOf(List(48) { 0f })
     private val preview = SamplePreview(activity)
-    init { if (extracted != null) inspectRecording() else if (imported != null) importWav() }
+    init { if (extracted != null) inspectRecording() else if (imported != null || editingVoice != null) importWav() }
     private fun importWav() {
         working = true; phase = Phase.PROCESSING
         worker.execute {
             val result = runCatching {
-                requireNotNull(activity.contentResolver.openInputStream(imported!!)).use { input ->
+                val source = if (editingVoice != null) {
+                    val pack = requireNotNull(ModelPackRepository.find(activity, packId))
+                    File(pack.voicesDir, editingVoice.fileName).inputStream()
+                } else requireNotNull(activity.contentResolver.openInputStream(imported!!))
+                source.use { input ->
                     importedOriginal.outputStream().use { output ->
                         val buffer = ByteArray(65536); var size = 0L
                         while (true) {
@@ -125,7 +130,7 @@ internal class VoiceRecordingDialog(
             Phase.SAVING -> R.string.rec_saving
             Phase.FAILED -> if (externalSample) R.string.error_invalid_wav else R.string.voice_record_failed
         })
-        GlassSheet(if (extracted != null) "Review extracted audio" else stringResource(if (externalSample) R.string.import_review_title else R.string.voice_record_title), ::close, footer = {
+        GlassSheet(if (editingVoice != null) "Edit audio · ${editingVoice.displayName}" else if (extracted != null) "Review extracted audio" else stringResource(if (externalSample) R.string.import_review_title else R.string.voice_record_title), ::close, footer = {
             if (phase == Phase.TRIMMING) {
                 Button(onClick = { applyTrim(false) }, enabled = !working && trimEnd - trimStart in 3000..30000,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp).testTag("trim-apply")) {
@@ -137,12 +142,13 @@ internal class VoiceRecordingDialog(
                     modifier = Modifier.padding(horizontal = 24.dp).semantics { liveRegion = LiveRegionMode.Polite })
                 Button(onClick = ::save, enabled = phase == Phase.STOPPED,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp).testTag("record-save")) {
-                    Text(stringResource(if (phase == Phase.SAVING) R.string.rec_saving else R.string.voice_save))
+                    Text(if (editingVoice != null && phase != Phase.SAVING) "Save changes" else stringResource(if (phase == Phase.SAVING) R.string.rec_saving else R.string.voice_save))
                 }
             }
         }) {
             item {
-                Text(stringResource(if (externalSample) R.string.import_review_help else R.string.rec_guidance), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (editingVoice != null) "Trim or enhance the current reference sample. Your original source stays recoverable through Restore Original in voice actions."
+                    else stringResource(if (externalSample) R.string.import_review_help else R.string.rec_guidance), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 importError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Text(stringResource(R.string.rec_unsaved), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
@@ -210,12 +216,12 @@ internal class VoiceRecordingDialog(
                 item {
                     if (preview.state.key != null) {
                         Text(preview.state.title, style = MaterialTheme.typography.titleSmall)
-                        PreviewControls(preview, expanded = true)
+                        PreviewControls(preview)
                     }
                     if (previewError) Text(stringResource(R.string.reader_error_output), color = MaterialTheme.colorScheme.error)
                     if (saveError) Text(stringResource(R.string.voice_save_failed), color = MaterialTheme.colorScheme.error)
                 }
-                item {
+                if (editingVoice == null) item {
                     OutlinedTextField(name, { name = it; nameError = false }, label = { Text(stringResource(R.string.voice_name)) },
                         singleLine = true, isError = nameError, enabled = phase != Phase.SAVING,
                         modifier = Modifier.fillMaxWidth().testTag("record-name"),
@@ -420,8 +426,13 @@ internal class VoiceRecordingDialog(
         val selectedFile = if (useEnhanced && enhancedReady) enhanced else beforeSample
         val hasEnhanced = enhancedReady
         worker.execute {
-            val result = runCatching { ModelPackRepository.importRecording(activity.applicationContext, packId, label,
-                selectedFile, original = original, enhanced = enhanced.takeIf { hasEnhanced }, trimmed = trimmed.takeIf { trimApplied }) }
+            val result = runCatching {
+                check(!closed) { "Saving cancelled" }
+                if (editingVoice != null) ModelPackRepository.updateVoiceAudio(activity.applicationContext, packId, editingVoice.id,
+                    selectedFile, beforeSample, enhanced.takeIf { hasEnhanced }, cancelled = { closed })
+                else ModelPackRepository.importRecording(activity.applicationContext, packId, label,
+                    selectedFile, original = original, enhanced = enhanced.takeIf { hasEnhanced }, trimmed = trimmed.takeIf { trimApplied })
+            }
             result.exceptionOrNull()?.let { Log.e("PocketTTS", "VOICE_SAVE_FAILED", it) }
             main.post {
                 working = false

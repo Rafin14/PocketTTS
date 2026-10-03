@@ -1,6 +1,9 @@
 # Model packs
 
-> Legacy developer/export reference, not current installation instructions. The app now bundles English FP32 and Alba automatically; there is no model-pack picker on a fresh install. See the root README for current setup. This format remains relevant to bundled assets and legacy data compatibility.
+This is a developer/export reference. The Android app bundles English FP32 and
+Alba automatically and does not expose a model-pack picker. See the
+[README](../README.md) for installation. This format remains relevant to bundled
+assets and compatibility with previously installed packs.
 
 > **Security:** ONNX files are complex native-runtime inputs. Import model packs
 > only from sources you trust. The Android importer rejects path traversal,

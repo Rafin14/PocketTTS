@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- JDK 17 (Java/Kotlin target 17); JBR 21 was also used successfully locally.
+- JDK 17 or the tested JBR 21 (Java/Kotlin target 17).
 - SDK Platform 35; Android Build Tools 34.0.0 (AGP 8.7.3 default), platform-tools.
 - NDK 27.2.12479018, CMake 3.22.1 (install through Android Studio SDK Manager).
 - Git, Git LFS; Bash with curl, unzip, tar and sha256sum for native dependency preparation.
@@ -29,7 +29,6 @@ bash scripts/prepare_android_native_deps.sh
 The script downloads/checksums ONNX Runtime Android 1.20.0 and extracts ARM64
 binaries and matching headers into Git-ignored directories. On Windows use
 Git Bash with the required utilities, or WSL against this same checkout.
-Do not open/build the unused `speech-android-main/` reference checkout.
 
 Set `ANDROID_HOME` to the local SDK, or let Android Studio create ignored
 `local.properties`. Set `JAVA_HOME` to your JDK. CMake fetches pinned
@@ -62,9 +61,10 @@ adb logcat -b crash -d
 
 First launch prepares built-in English/Alba locally. No language-pack picker
 is needed. Test Reader playback and Android system TTS settings. Microphone
-permission is only needed for recording. UI/media/DeepFilter tests run on the
-available Android 16 x86 emulator; Pocket ONNX synthesis tests skip that emulator
-because ARM translation is unsupported. Use ARM64 hardware before release.
+permission is only needed for recording. Native Pocket ONNX synthesis requires
+ARM64 hardware; x86 emulator translation is unsupported for that graph. A skipped
+native test is not a successful synthesis check. Use a dedicated test installation:
+instrumentation can change settings and create/delete test voices.
 
 ## Release signing
 
@@ -101,4 +101,18 @@ Increment versionCode for updates, and choose the corresponding versionName.
 No release signing secrets are included or needed for debug builds.
 
 For GitHub web/CLI publishing steps, see [README → APK releases](../README.md#apk-releases).
-These are manual instructions, not automation that uploads anything.
+
+## Isolated device testing
+
+If your installed app uses a different signing key, build a separate QA package
+without uninstalling it or touching its voices:
+
+```powershell
+.\gradlew.bat :app:assembleDebug :app:assembleDebugAndroidTest -PisolatedDeviceTest=true
+```
+
+This optional debug flag changes only the package ID to
+`org.pockettts.android.engine.qa`. The test package is
+`org.pockettts.android.engine.qa.test`. Default debug and release builds keep
+the existing application ID. Run the QA APK/test APK on a dedicated device;
+rebuild without the flag to produce the normal app APK.

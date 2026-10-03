@@ -104,7 +104,7 @@ internal fun TrimControls(info: WavSamples.Info, start: Int, end: Int, change: (
         OutlinedButton(onClick = preview, enabled = enabled && valid, modifier = Modifier.fillMaxWidth().testTag("trim-preview")) {
             Text(stringResource(if (state.playing) R.string.reader_pause else R.string.trim_preview))
         }
-        if (state.key != null) PreviewControls(player, expanded = true)
+        if (state.key != null) PreviewControls(player)
     }
 }
 

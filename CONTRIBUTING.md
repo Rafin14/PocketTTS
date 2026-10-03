@@ -8,7 +8,7 @@ architecture/model changes first.
 - Run `./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`.
 - Run relevant instrumentation tests, and test synthesis on a physical ARM64
   device when changing native inference or voice conditioning. Report skips honestly.
-- Run `python scripts/check_publishable.py` after initializing Git.
+- Run `python scripts/check_publishable.py` before submitting changes.
 - Keep the required bundled model archive in Git LFS. Do not exclude required
   runtime assets; model changes must include provenance and license review.
 - Never submit private recordings, tokens, signing keys, local SDK paths or

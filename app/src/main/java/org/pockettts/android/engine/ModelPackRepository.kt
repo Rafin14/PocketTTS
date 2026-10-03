@@ -21,7 +21,8 @@ internal data class PackVoice(
     val id: String,
     val displayName: String,
     val fileName: String,
-    val userCreated: Boolean = false
+    val userCreated: Boolean = false,
+    val audioEdited: Boolean = false
 )
 
 internal data class ModelPack(
@@ -187,7 +188,7 @@ internal object ModelPackRepository {
                 if (original != null) archive.deleteRecursively()
                 throw error
             }
-            val updated = pack.copy(voices = pack.voices + PackVoice(id, displayName, targetName, true))
+            val updated = pack.copy(voices = pack.voices + PackVoice(id, displayName, targetName, true, enhanced != null || trimmed != null))
             try { writeManifest(updated) } catch (error: Throwable) {
                 target.delete(); if (original != null) archive.deleteRecursively(); throw error
             }
@@ -201,9 +202,74 @@ internal object ModelPackRepository {
         require(root.parentFile == pack.voicesDir.canonicalFile && folder.parentFile == root)
         return folder
     }
-    fun recordingSource(pack: ModelPack, voice: PackVoice, enhanced: Boolean): File? =
-        (if (!enhanced) File(recordingArchive(pack, voice.id), "trimmed.wav").takeIf { it.isFile } else null)
+    fun originalSource(pack: ModelPack, voice: PackVoice): File =
+        File(recordingArchive(pack, voice.id), "original.wav").takeIf { it.isFile } ?: File(pack.voicesDir, voice.fileName)
+
+    fun recordingSource(pack: ModelPack, voice: PackVoice, enhanced: Boolean): File? {
+        val version = File(recordingArchive(pack, voice.id), voice.fileName.removeSuffix(".wav"))
+        if (version.isDirectory) return File(version, if (enhanced) "enhanced.wav" else "before.wav").takeIf { it.isFile }
+        return (if (!enhanced) File(recordingArchive(pack, voice.id), "trimmed.wav").takeIf { it.isFile } else null)
             ?: File(recordingArchive(pack, voice.id), if (enhanced) "enhanced.wav" else "original.wav").takeIf { it.isFile }
+    }
+
+    fun renameVoice(context: Context, packId: String, voiceId: String, name: String): ModelPack = PocketEngine.updateModels {
+        val pack = requireNotNull(find(context, packId))
+        val voice = pack.voices.first { it.id == voiceId }
+        require(voice.userCreated)
+        val label = name.trim()
+        require(label.isNotEmpty() && label.length <= 80) { "Enter a name between 1 and 80 characters." }
+        require(pack.voices.none { it.id != voiceId && it.displayName.equals(label, true) }) { "A voice with that name already exists." }
+        pack.copy(voices = pack.voices.map { if (it.id == voiceId) it.copy(displayName = label) else it }).also(::writeManifest)
+    }
+
+    /** New reference + version files first; AtomicFile manifest commits the pointer last. */
+    fun updateVoiceAudio(context: Context, packId: String, voiceId: String, sample: File,
+                         before: File? = null, enhanced: File? = null, restore: Boolean = false,
+                         cancelled: () -> Boolean = { false }): ModelPack = PocketEngine.updateModels {
+        val pack = requireNotNull(find(context, packId))
+        val voice = pack.voices.first { it.id == voiceId }
+        require(voice.userCreated)
+        require(PcmWav.isVoiceSample(sample))
+        check(!cancelled()) { "Editing cancelled" }
+        val old = File(pack.voicesDir, voice.fileName)
+        val archive = recordingArchive(pack, voiceId).apply { mkdirs() }
+        val original = File(archive, "original.wav")
+        if (!original.isFile) {
+            val atomic = android.util.AtomicFile(original)
+            val output = atomic.startWrite()
+            try { old.inputStream().use { it.copyTo(output) }; atomic.finishWrite(output) }
+            catch (error: Throwable) { atomic.failWrite(output); throw error }
+        }
+        val target = File(pack.voicesDir, "reference-${UUID.randomUUID()}.wav")
+        val version = File(archive, target.nameWithoutExtension)
+        var committed = false
+        try {
+            sample.copyTo(target)
+            check(version.mkdirs())
+            (before ?: sample).copyTo(File(version, "before.wav"))
+            enhanced?.copyTo(File(version, "enhanced.wav"))
+            check(!cancelled()) { "Editing cancelled" }
+            val updated = pack.copy(voices = pack.voices.map {
+                if (it.id == voiceId) it.copy(fileName = target.name, audioEdited = !restore) else it
+            })
+            writeManifest(updated)
+            committed = true
+            // No native reader can hold these paths inside updateModels().
+            old.delete()
+            archive.listFiles()?.filter { it.isDirectory && it != version }?.forEach { it.deleteRecursively() }
+            listOf("trimmed.wav", "enhanced.wav").forEach { File(archive, it).delete() }
+            updated
+        } catch (error: Throwable) {
+            if (!committed) { target.delete(); version.deleteRecursively() }
+            throw error
+        }
+    }
+
+    fun restoreVoice(context: Context, packId: String, voiceId: String): ModelPack {
+        val pack = requireNotNull(find(context, packId))
+        val voice = pack.voices.first { it.id == voiceId }
+        return updateVoiceAudio(context, packId, voiceId, originalSource(pack, voice), restore = true)
+    }
 
     fun deleteVoice(context: Context, packId: String, voiceId: String): Unit = PocketEngine.updateModels {
         val pack = find(context, packId) ?: return@updateModels
@@ -290,7 +356,9 @@ internal object ModelPackRepository {
             val item = voiceArray.getJSONObject(index)
             val fileName = item.getString("file")
             require(fileName.isNotBlank() && fileName != "." && fileName != ".." && '/' !in fileName && '\\' !in fileName)
-            PackVoice(item.getString("id"), item.getString("name"), fileName, item.optBoolean("userCreated", false))
+            val archive = File(root, "voices/.recordings/${item.getString("id")}")
+            PackVoice(item.getString("id"), item.getString("name"), fileName, item.optBoolean("userCreated", false),
+                item.optBoolean("audioEdited", File(archive, "enhanced.wav").isFile || File(archive, "trimmed.wav").isFile))
         }
         return ModelPack(
             id = sanitizeId(json.getString("id")),
@@ -307,12 +375,15 @@ internal object ModelPackRepository {
 
     private fun writeManifest(pack: ModelPack) {
         pack.root.mkdirs()
+        val previous = if (pack.manifestFile.isFile) JSONObject(pack.manifestFile.readText()) else JSONObject()
+        val oldVoices = previous.optJSONArray("voices") ?: JSONArray()
         val voices = JSONArray().apply {
             pack.voices.forEach { voice ->
-                put(JSONObject().put("id", voice.id).put("name", voice.displayName).put("file", voice.fileName).put("userCreated", voice.userCreated))
+                val metadata = (0 until oldVoices.length()).map { oldVoices.getJSONObject(it) }.firstOrNull { it.optString("id") == voice.id } ?: JSONObject()
+                put(metadata.put("id", voice.id).put("name", voice.displayName).put("file", voice.fileName).put("userCreated", voice.userCreated).put("audioEdited", voice.audioEdited))
             }
         }
-        JSONObject()
+        previous
             .put("format", FORMAT_VERSION)
             .put("id", pack.id)
             .put("name", pack.displayName)

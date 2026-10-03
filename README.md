@@ -9,22 +9,26 @@ This is an unofficial community application, not an official Kyutai Android rele
 ## What you can do
 
 ### Read and listen
+
 - English FP32 model and the Alba reference voice are bundled in the APK; first launch prepares them locally, without a download.
 - Long-form Reader with automatic text chunking, read-only and Edit modes, spoken-section highlighting, and scroll synchronization.
-- Play, pause/resume, stop, seek within prepared audio, change speed from **0.50× to 2.00×**, and export generated WAV audio.
+- Compact playback controls leave more room for text. Play, pause/resume, stop, move between actual chunks (including chunks still generating), seek within prepared audio, change speed from **0.50× to 2.00×**, and export generated WAV audio.
 - Audio-derived waveform and progress display. Highlighting follows generated sections, not forced-aligned individual words.
 - Background playback with Android media-session/notification controls.
 - Android system text-to-speech engine integration for other apps.
 
 ### Create a voice
+
 - Record with microphone-driven waveform and duration feedback, import a WAV, or **Extract from Video** using Android's file picker.
 - Preview video locally, decode its audio, then use the same waveform/trim/review pipeline.
 - Select a **3–30-second** reference using trim handles, 0.1-second adjustments, and a draggable playback position.
 - Apply bundled **DeepFilterNet3** noise reduction and compare real before/after waveforms and audio. Keep the unenhanced sample if preferred.
-- Name/save/select custom voices; preview them in a compact or expanded player and manage saved voices.
+- Name/save/select custom voices and preview them directly in an expanded player with waveform, seeking and speed controls.
+- Rename, trim or denoise saved custom voices from their action menu. Edits preserve the voice ID, name and original source; **Restore Original** restores the actual cloning reference and clears obsolete derived audio.
 - Retain original, trimmed, and enhanced recordings for saved voices. Voice cloning conditions the model on the reference sample; it does not train a new model.
 
 ### Make it yours
+
 - Material 3 with restrained glass surfaces, muted periwinkle accents, and readable tonal hierarchy.
 - System, Light, Dark, and AMOLED appearance modes.
 - Generation controls for temperature, LSD steps, CPU threads, text segment size, and sentence pauses.
@@ -32,7 +36,7 @@ This is an unofficial community application, not an official Kyutai Android rele
 
 ## Screenshots
 
-Actual current application, captured on an Android 16 emulator. No mockups. The video example uses the bundled Alba reference with a generated test picture; no personal recordings are shown.
+Screenshots from the app running on an Android 16 ARM64 phone. The video example uses the bundled Alba reference with a generated test picture; no personal recordings are shown.
 
 <table>
 <tr>
@@ -46,13 +50,13 @@ Actual current application, captured on an Android 16 emulator. No mockups. The 
 <td align="center"><img src="docs/screenshots/voice-enhancement.png" width="230" alt="Audio enhancement comparison"><br>Before/after enhancement</td>
 </tr>
 <tr>
-<td align="center"><img src="docs/screenshots/record-voice.png" width="230" alt="Microphone permission before recording"><br>Microphone setup</td>
+<td align="center"><img src="docs/screenshots/record-voice.png" width="230" alt="Ready to record a voice sample"><br>Voice recording</td>
 <td align="center"><img src="docs/screenshots/settings.png" width="230" alt="Appearance and engine settings"><br>Settings</td>
 <td align="center"><img src="docs/screenshots/about.png" width="230" alt="About Pocket TTS"><br>About</td>
 </tr>
 </table>
 
-A native TTS-playing screenshot is deliberately omitted: the available x86 emulator cannot reliably execute the ARM64 Pocket ONNX synthesis stack. UI/media/DeepFilter tests are not a substitute for native speech testing on a phone. [Capture details](docs/screenshots/README.md).
+See [screenshot capture instructions](docs/screenshots/README.md) for refreshing the gallery.
 
 ## Architecture
 
@@ -102,12 +106,13 @@ Microphone / WAV import / video MediaExtractor + MediaCodec
 | Android media APIs | AudioRecord, MediaPlayer, MediaSession, MediaExtractor, MediaCodec |
 | Tests | JUnit 4.13.2, AndroidX runner 1.6.2, Compose UI tests |
 
-Python/export tools are optional developer utilities, not Android runtime dependencies. The local `speech-android-main/` reference checkout is not a module and is excluded from publication.
+Python/export tools are optional developer utilities, not Android runtime dependencies.
 
 ## Build locally
 
 ### Requirements
-- JDK **17**; this checkout was also built successfully using JBR 21 with Java/Kotlin target 17.
+
+- JDK **17** or the tested JBR **21**, with Java/Kotlin target 17.
 - Android SDK Platform **35**, Build Tools **34.0.0** (AGP default), platform-tools, NDK **27.2.12479018**, CMake **3.22.1**.
 - Git and **Git LFS** for the bundled model archive.
 - Bash, curl, unzip, tar and sha256sum for the native-dependency preparation script (WSL or an appropriately equipped Bash environment on Windows).
@@ -135,8 +140,9 @@ The required `PocketTTS-english-FP32.zip` is approximately **198 MiB** and uses 
 Output: **`app/build/outputs/apk/debug/app-debug.apk`**.
 
 ### Android Studio
+
 1. Clone with Git LFS and prepare ONNX Runtime as above.
-2. Open the repository root—not `app/` or the unused reference checkout.
+2. Open the repository root, not `app/`.
 3. Set the Gradle JDK and install the exact SDK/NDK/CMake components through SDK Manager.
 4. Sync Gradle, select the `app` configuration and an ARM64 device, then Run.
 
@@ -172,18 +178,18 @@ Only clone voices you have permission to use. Do not present generated speech as
 
 ## APK releases
 
-Distribute signed APKs through **GitHub Releases**, not as source-repository build artifacts. This fresh repository has no published release or inherited official signing certificate.
+Distribute signed APKs through **GitHub Releases**, not as source-repository build artifacts.
 
-1. Update `versionCode` and `versionName` in `app/build.gradle.kts` when making a new version. Current values are **22 / 0.5.2**; no version change was made during publishing preparation.
+1. Update `versionCode` and `versionName` in `app/build.gradle.kts` when making a new version. Current values are **22 / 0.5.2**.
 2. Create/retain a private signing keystore **outside** the checkout. Set `POCKETTTS_KEYSTORE_PATH`, `POCKETTTS_KEYSTORE_PASSWORD`, `POCKETTTS_KEY_ALIAS`, and `POCKETTTS_KEY_PASSWORD`.
 3. Run `./gradlew :app:assembleRelease :app:lintRelease` (Windows: `.\gradlew.bat`).
 4. With signing configured, locate `app/build/outputs/apk/release/app-release.apk`. Without all four variables Gradle produces `app-release-unsigned.apk`, which must not be published as installable.
 5. Verify the signature with Android Build Tools `apksigner verify --verbose --print-certs`, then install/test on ARM64 hardware.
 6. Copy the finished signed file to a release-artifact directory as **`Pocket-TTS-v0.5.2-release.apk`**. Renaming a completed APK does not modify its signature.
-7. After you commit and push the reviewed source yourself, open GitHub **Releases → Draft a new release → Choose a tag**. Create `v0.5.2` against the tested commit (or select your existing tag).
+7. Commit and push the reviewed source, then open GitHub **Releases → Draft a new release → Choose a tag**. Use a version tag against the tested commit.
 8. Add a title, release notes, supported architecture, known limitations and the signed APK attachment; publish when ready.
 
-Optional CLI, **for you to run only after your source is committed/pushed and tested**:
+Optional CLI example (choose the version tag for your release):
 
 ```bash
 git tag -a v0.5.2 -m "Pocket TTS 0.5.2"
@@ -208,9 +214,9 @@ GitHub references: [managing releases](https://docs.github.com/en/repositories/r
 - Supported video/audio codecs depend on Android's decoders. The first supported audio track is selected; DRM-protected, corrupt or non-seekable inputs may be rejected.
 - Enhancement cannot reliably remove music, echo or other speakers. Choose clean, single-speaker speech.
 - A large self-contained APK is expected; model extraction and archived audio require extra storage.
-- Current verification includes unit tests and emulator UI/media/real DeepFilter tests. Physical ARM64 synthesis checks are explicitly skipped on x86, not claimed as passing.
+- Use ARM64 hardware for native synthesis tests. UI fixtures and emulator checks do not establish subjective speech quality or performance on every device.
 
-See [limits/UI verification](docs/LIMITS_AND_UI_AUDIT.md) and [video flow](docs/VIDEO_VOICES.md). Older documents under `docs/` retain development history and are labeled accordingly.
+See the [Reader guide](docs/READER.md), [voice management](docs/PLAYBACK_AND_VOICE_EDITING.md), [audio limits](docs/LIMITS_AND_UI_AUDIT.md), [video flow](docs/VIDEO_VOICES.md) and [publishing checklist](docs/PUBLISHING_CHECKLIST.md).
 
 ## Repository map
 
@@ -234,7 +240,7 @@ Application code: [MIT](LICENSE). Vendored software retains its original notices
 - ONNX Runtime: MIT; SentencePiece, AndroidX/Compose and Kotlin: Apache-2.0; dr_libs offers public-domain/MIT-0 licensing.
 - Full notices, pinned provenance, modifications and bundled license texts: [Third-party notices](THIRD_PARTY_NOTICES.md), [packaged licenses](app/src/main/assets/licenses/), [DeepFilter notices](app/src/main/assets/deepfilter/NOTICES.txt).
 
-Upstream URLs and copyright notices are intentionally preserved; removing old Git history does not remove attribution.
+Upstream software, models and recordings retain their original copyright notices and licensing requirements.
 
 ## Contributing
 

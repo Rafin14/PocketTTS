@@ -22,7 +22,7 @@ class VoiceWorkflowTest {
             it.recycle()
         }
     }
-    @Test fun selectedVoiceAndSingleExpandablePreview() {
+    @Test fun selectedVoiceAndDirectExpandedPreview() {
         ui.waitUntil(15000) { ui.activity.documentReady }
         val app = ui.activity
         assumeTrue(app.packs.isNotEmpty())
@@ -48,20 +48,19 @@ class VoiceWorkflowTest {
             }
             ui.runOnIdle { app.setAppearance("dark"); app.previewVoice(pack, voices.first()) }
             ui.waitUntil(10000) { app.preview.state.playing }
-            ui.onNodeWithTag("preview-mini").assertIsDisplayed()
+            ui.onNodeWithTag("preview-mini").assertDoesNotExist()
+            ui.onNodeWithTag("preview-expand").assertDoesNotExist()
+            ui.onNodeWithTag("preview-toggle").assertIsDisplayed()
             ui.waitUntil(5000) { app.preview.state.positionMs > 0 }
-            capture("preview-mini")
+            capture("preview-direct")
             ui.onNodeWithTag("preview-toggle").performClick()
             ui.runOnIdle { assertFalse(app.preview.state.playing) }
-            ui.onNodeWithTag("preview-expand").performClick()
             capture("preview-expanded")
             ui.onAllNodesWithTag("preview-toggle").onLast().performClick()
             ui.waitUntil(5000) { app.preview.state.playing }
-            ui.runOnIdle { app.previewExpanded = false; app.previewVoice(pack, voices.last()) }
+            ui.runOnIdle { app.previewVoice(pack, voices.last()) }
             ui.waitUntil(10000) { app.preview.state.playing && app.preview.state.title == voices.last().displayName }
-            ui.onNodeWithTag("preview-mini").performTouchInput { swipeUp() }
-            ui.waitUntil(5000) { app.previewExpanded }
-            ui.runOnIdle { app.previewExpanded = false }
+            ui.onNodeWithTag("preview-toggle").assertIsDisplayed()
             ui.onNodeWithTag("preview-stop").performClick()
             ui.onNodeWithTag("preview-mini").assertDoesNotExist()
             ui.runOnIdle { app.previewVoice(pack, voices.first()) }
@@ -84,7 +83,22 @@ class VoiceWorkflowTest {
         val original = app.selection
         val name = "Recording QA ${System.currentTimeMillis()}"
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        automation.grantRuntimePermission(app.packageName, Manifest.permission.RECORD_AUDIO)
+        if (app.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            runCatching { automation.grantRuntimePermission(app.packageName, Manifest.permission.RECORD_AUDIO) }
+            // Some OEMs disallow shell grants. Exercise the real permission dialog.
+            if (app.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                ui.runOnIdle { app.requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 991) }
+                fun allow(node: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
+                    if (node == null) return null
+                    if (node.viewIdResourceName?.endsWith(":id/permission_allow_foreground_only_button") == true) return node
+                    for (i in 0 until node.childCount) allow(node.getChild(i))?.let { return it }
+                    return null
+                }
+                ui.waitUntil(10000) { allow(automation.rootInActiveWindow) != null }
+                assertTrue(allow(automation.rootInActiveWindow)!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
+                ui.waitUntil(10000) { app.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+            }
+        }
         try {
             ui.runOnIdle { app.switchTab(1); app.sheet = "add" }
             capture("add-voice-polished")

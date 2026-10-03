@@ -7,7 +7,7 @@ import android.os.Looper
 import androidx.compose.runtime.*
 import java.io.File
 
-/** One foreground preview player shared by compact/expanded controls. Main-thread only. */
+/** One foreground sample player shared by preview, trim and video controls. Main-thread only. */
 internal class SamplePreview(private val context: Context) : AutoCloseable {
     data class State(val key: String? = null, val title: String = "", val loading: Boolean = false,
         val playing: Boolean = false, val positionMs: Int = 0, val durationMs: Int = 0)
@@ -52,8 +52,9 @@ internal class SamplePreview(private val context: Context) : AutoCloseable {
                      configure: (MediaPlayer) -> Unit, onError: () -> Unit) {
         close()
         this.onError = onError
-        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-            .setAudioAttributes(attributes).setOnAudioFocusChangeListener({ if (it < 0) close() }, main).build()
+        lateinit var request: AudioFocusRequest
+        request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            .setAudioAttributes(attributes).setOnAudioFocusChangeListener({ if (focus === request && it < 0) close() }, main).build()
         if (context.getSystemService(AudioManager::class.java).requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             onError(); return
         }
