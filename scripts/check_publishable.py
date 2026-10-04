@@ -26,7 +26,7 @@ def main():
         errors.append('Pocket archive is not a ZIP (run git lfs pull if it is a pointer)')
     if b'filter: lfs' not in git('check-attr', 'filter', '--', required[0]):
         errors.append('Pocket archive lacks its LFS attribute')
-    sensitive_name = re.compile(r'(^|/)(local\.properties|\.env(?:\..*)?|keystore\.properties)$|\.(jks|keystore|p12|pfx|pem|key|apk|aab)$', re.I)
+    sensitive_name = re.compile(r'(^|/)(local\.properties|\.env(?:\..*)?|keystore\.properties|PocketTTS-Voices-[^/]*\.zip)$|\.(jks|keystore|p12|pfx|pem|key|apk|aab)$', re.I)
     secret = re.compile(r'BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[A-Za-z0-9_-]{30,}|sk-[A-Za-z0-9_-]{20,}')
     personal = re.compile(r'[A-Za-z]:[\\/]Users[\\/][^\s/\\]+|/home/[^/\s]+/|/mnt/[a-z]/')
     for name in sorted(names):

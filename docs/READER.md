@@ -2,7 +2,9 @@
 
 The Reader turns your text into offline speech using the selected Pocket TTS
 voice. The text area is scrollable and the compact player keeps the document
-visible while listening.
+visible while listening. The waveform is also the seek slider, keeping playback
+compact and leaving more vertical room for text. Its standard slider semantics
+support touch, keyboard and accessibility actions.
 
 ## Read and edit
 
@@ -22,8 +24,8 @@ Pause retains the highlight without moving the text. Stop clears it.
 ## Playback controls
 
 - **Play / Pause / Resume:** control the current reading.
-- **Previous:** restart a partly played chunk, or move to the preceding chunk
-  when already at its start.
+- **Previous:** move to the preceding chunk, regardless of the current playback
+  position. Disabled at the first chunk; use Seek to restart the current chunk.
 - **Next:** select the next chunk, including one still being generated.
 - **Stop:** stop audio and cancel remaining generation.
 - **Seek:** move within audio already generated, using the slider or waveform.

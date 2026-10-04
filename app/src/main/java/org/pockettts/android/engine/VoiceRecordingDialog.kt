@@ -65,7 +65,11 @@ internal class VoiceRecordingDialog(
         private set
     private var cachedRange: Pair<Int, Int>? = null
     private var trimApplied = false
-    private val beforeSample get() = if (trimApplied) trimmed else original
+    internal var volume by mutableFloatStateOf(1f)
+        private set
+    private var appliedVolume by mutableFloatStateOf(1f)
+    private var cachedVolume = 1f
+    private val beforeSample get() = if (trimApplied || volume != 1f) trimmed else original
     private var importError by mutableStateOf<String?>(null)
     internal var enhancedReady by mutableStateOf(false)
         private set
@@ -167,13 +171,22 @@ internal class VoiceRecordingDialog(
             }
             if (phase == Phase.TRIMMING) item {
                 trimInfo?.let { info ->
+                    if (editingVoice != null) {
+                        Text("Volume · ${(volume * 100).toInt()}%", style = MaterialTheme.typography.titleMedium)
+                        Text("Adjust the saved audio, not just preview loudness. Gain is limited when needed to prevent clipping.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Slider(value = volume, onValueChange = ::changeVolume, valueRange = .5f..2f, steps = 29,
+                            enabled = !working, modifier = Modifier.fillMaxWidth().testTag("edit-volume")
+                                .semantics { contentDescription = "Voice audio volume" })
+                        OutlinedButton(onClick = { changeVolume(1f) }, enabled = !working && volume != 1f) { Text("Reset to 100%") }
+                    }
                     TrimControls(info, trimStart, trimEnd, ::changeTrim, preview, trimPosition, ::seekTrim,
                         enabled = !working, preview = {
                             if (preview.state.key != null) preview.toggle() else prepareSelection(false)
                         })
                     if (working) LinearProgressIndicator(Modifier.fillMaxWidth())
                     if (previewError) Text(stringResource(R.string.reader_error_output), color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = { applyTrim(true) }, enabled = !working,
+                    OutlinedButton(onClick = { applyTrim(true) }, enabled = !working,
                         modifier = Modifier.fillMaxWidth().testTag("trim-skip")) { Text(stringResource(R.string.trim_skip)) }
                 }
             }
@@ -203,12 +216,15 @@ internal class VoiceRecordingDialog(
             if (phase == Phase.STOPPED || phase == Phase.SAVING) {
                 item {
                     SectionTitle(stringResource(R.string.rec_review))
+                    if (editingVoice != null && volume != 1f) Text("Volume applied · ${(appliedVolume * 100).toInt()}%" +
+                        if (appliedVolume + .001f < volume) " (limited to prevent clipping)" else "",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (trimInfo != null) OutlinedButton(onClick = ::adjustTrim, enabled = !working,
                         modifier = Modifier.fillMaxWidth().testTag("adjust-trim")) { Text(stringResource(R.string.trim_adjust)) }
                     Text(stringResource(if (externalSample) R.string.import_review_help else R.string.rec_review_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (denoiseError) {
                         Text(stringResource(R.string.df_failed), color = MaterialTheme.colorScheme.error)
-                        TextButton(onClick = ::denoise, enabled = !working, modifier = Modifier.testTag("denoise-retry")) { Text(stringResource(R.string.df_retry)) }
+                        FilledTonalButton(onClick = ::denoise, enabled = !working, modifier = Modifier.testTag("denoise-retry")) { Text(stringResource(R.string.df_retry)) }
                     }
                 }
                 item { Comparison(false) }
@@ -324,6 +340,11 @@ internal class VoiceRecordingDialog(
         trimEnd = end.coerceIn(trimStart + 3000, duration)
         trimPosition = trimPosition.coerceIn(trimStart, trimEnd)
     }
+    internal fun changeVolume(value: Float) {
+        if (working || closed || phase != Phase.TRIMMING || editingVoice == null || !value.isFinite()) return
+        preview.close(); volume = value.coerceIn(.5f, 2f); cachedRange = null
+        enhancedReady = false; previewError = false
+    }
     internal fun seekTrim(position: Int) {
         if (closed || phase != Phase.TRIMMING) return
         trimPosition = position.coerceIn(trimStart, trimEnd)
@@ -337,6 +358,7 @@ internal class VoiceRecordingDialog(
         if (skip) {
             trimStart = 0; trimEnd = trimInfo?.durationMs ?: return
             if (trimEnd !in 3000..30000) {
+                if (volume != 1f) { importError = "Volume editing requires a 3–30-second selection."; return }
                 trimApplied = false; enhancedReady = false; useEnhanced = false; denoiseError = true
                 cachedRange = null; beforeLevels = emptyList()
                 importError = activity.getString(R.string.trim_limits)
@@ -353,13 +375,15 @@ internal class VoiceRecordingDialog(
         val range = trimStart to trimEnd
         worker.execute {
             val result = runCatching {
-                if (cachedRange != range || !trimmed.isFile) WavSamples.trim(original, trimmed, range.first, range.second)
+                if (cachedRange != range || cachedVolume != volume || !trimmed.isFile)
+                    WavSamples.trim(original, trimmed, range.first, range.second, volume) else appliedVolume
             }
             main.post {
                 working = false
                 if (closed) return@post
                 if (result.isFailure) { previewError = true; return@post }
                 cachedRange = range
+                cachedVolume = volume; appliedVolume = result.getOrThrow()
                 if (apply) denoise()
                 else preview.play(trimmed, activity.getString(R.string.trim_preview),
                     positionMs = (trimPosition - trimStart).let { if (autoPlay && it >= trimEnd - trimStart) 0 else it },
@@ -372,7 +396,10 @@ internal class VoiceRecordingDialog(
         preview.close(); working = true; phase = Phase.DENOISING; denoiseError = false
         worker.execute {
             val result = runCatching {
-                if (cachedRange != (trimStart to trimEnd) || !trimmed.isFile) WavSamples.trim(original, trimmed, trimStart, trimEnd)
+                if (cachedRange != (trimStart to trimEnd) || cachedVolume != volume || !trimmed.isFile) {
+                    val actual = WavSamples.trim(original, trimmed, trimStart, trimEnd, volume)
+                    main.post { if (!closed) appliedVolume = actual }
+                }
                 val before = DeepFilterNet3Denoiser.waveform(DeepFilterNet3Denoiser.readRecording(trimmed))
                 main.post { if (!closed) beforeLevels = before }
                 if (closed) return@runCatching null

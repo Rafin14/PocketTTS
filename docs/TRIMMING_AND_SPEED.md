@@ -32,6 +32,13 @@ available derived samples in app-private storage.
 To trim an already saved custom voice, use its **Edit audio** action. See
 [voice management](PLAYBACK_AND_VOICE_EDITING.md).
 
+Saved-reference editing also offers 50–200% volume. Processing follows
+**source → selected mono 24 kHz PCM → peak-limited gain → DeepFilterNet3 → review → save**.
+Gain is capped to keep peaks below 98% of full scale and encoded into the saved
+PCM16 WAV. At 100%, the existing trim path is unchanged. Original archives remain
+untouched. Changing volume invalidates previews/enhancement so stale audio cannot
+be accepted. Volume edits require a 3–30-second selection.
+
 ## Playback speed
 
 Reader and sample previews offer 0.50×–2.00× in 0.05× steps and a 1.00× reset.

@@ -6,6 +6,7 @@ import android.media.session.MediaSession
 import android.net.Uri
 import android.os.SystemClock
 import androidx.compose.ui.test.*
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
@@ -163,6 +164,7 @@ class TrimSpeedTest {
         val rateBefore = app.speed
         val textBefore = app.editor.text.toString()
         val editingBefore = app.editing
+        val appearanceBefore = app.appearance
         val directory = File(app.cacheDir, "reader-rate-qa-${System.nanoTime()}").apply { mkdirs() }
         val files = (0..1).map { index -> File(directory, "$index.wav").also { file ->
             PcmWav.Writer(file).use { out -> repeat(10) { out.write(FloatArray(24000) { kotlin.math.sin(it * .1).toFloat() * .1f }) } }
@@ -175,6 +177,10 @@ class TrimSpeedTest {
         (field(session, "timeline") as AudioTimeline).apply { append(10000); append(10000) }
         type.getDeclaredField("complete").apply { isAccessible = true }.setBoolean(session, true)
         type.getDeclaredField("total").apply { isAccessible = true }.setInt(session, 2)
+        val peaks = files.flatMap { WavSamples.inspect(it).peaks }
+        type.getDeclaredField("peaks").apply { isAccessible = true }.set(session, peaks)
+        type.getDeclaredField("binSamples").apply { isAccessible = true }.setLong(session, 469)
+        type.getDeclaredField("samples").apply { isAccessible = true }.setLong(session, 480000)
         try {
             ui.runOnIdle {
                 app.stopReader()
@@ -182,13 +188,26 @@ class TrimSpeedTest {
                 service.resume()
             }
             ui.waitUntil(10000) { app.snapshot.state == ReaderPlaybackService.State.PLAYING }
+            for (theme in listOf("light", "dark", "amoled")) {
+                ui.runOnIdle { app.setAppearance(theme); app.switchTab(0) }
+                capture("compact-reader-playing-$theme")
+            }
+            ui.runOnIdle { service.pause() }
+            ui.onNodeWithTag("reader-seek").performTouchInput { click(Offset(width * .55f, height / 2f)) }
+            ui.waitUntil(10000) { app.snapshot.chunk == 2 && app.snapshot.positionMs in 10000..12500 && field(service, "prepared") == true }
+            ui.runOnIdle { assertEquals(ReaderPlaybackService.State.PAUSED, app.snapshot.state) }
+            ui.onNodeWithTag("reader-seek").performTouchInput {
+                swipe(Offset(width * .55f, height / 2f), Offset(width * .2f, height / 2f), 500)
+            }
+            ui.waitUntil(10000) { app.snapshot.chunk == 1 && app.snapshot.positionMs in 2500..5500 && field(service, "prepared") == true }
+            ui.runOnIdle { assertEquals(ReaderPlaybackService.State.PAUSED, app.snapshot.state); service.resume() }
             val media = field(service, "mediaSession") as MediaSession
             for (rate in listOf(1f, 1.25f, .75f, .5f, 1.5f, 2f, 1.15f)) {
                 ui.runOnIdle { app.selectSpeed(rate); service.seekTo(0) }
-                ui.waitUntil(10000) { app.snapshot.state == ReaderPlaybackService.State.PLAYING }
+                ui.waitUntil(10000) { app.snapshot.state == ReaderPlaybackService.State.PLAYING && field(service, "prepared") == true && field(service, "seeking") == false }
                 SystemClock.sleep(350)
-                var start = 0; val time = SystemClock.elapsedRealtime()
-                ui.runOnIdle { start = (field(service, "player") as MediaPlayer).currentPosition }
+                var start = 0; var time = 0L
+                ui.runOnIdle { start = (field(service, "player") as MediaPlayer).currentPosition; time = SystemClock.elapsedRealtime() }
                 SystemClock.sleep(1400)
                 ui.runOnIdle {
                     val audio = field(service, "player") as MediaPlayer
@@ -227,7 +246,7 @@ class TrimSpeedTest {
             }
         } finally {
             ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
-            ui.runOnIdle { app.sheet = null; service.stop(); app.selectSpeed(rateBefore); app.editor.setText(textBefore); app.setEditing(editingBefore, false) }
+            ui.runOnIdle { app.sheet = null; service.stop(); app.selectSpeed(rateBefore); app.setAppearance(appearanceBefore); app.editor.setText(textBefore); app.setEditing(editingBefore, false) }
             files.forEach(File::delete); directory.delete()
         }
     }

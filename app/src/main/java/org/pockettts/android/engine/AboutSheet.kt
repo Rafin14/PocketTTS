@@ -48,7 +48,7 @@ internal fun AboutSheet(dismiss: () -> Unit) {
             SectionTitle(stringResource(R.string.about_credits_title))
             Text(stringResource(R.string.about_credits_body), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = { showNotices = !showNotices }, modifier = Modifier.testTag("about-notices")) {
+            OutlinedButton(onClick = { showNotices = !showNotices }, modifier = Modifier.testTag("about-notices")) {
                 Text(stringResource(R.string.about_notices))
             }
         }

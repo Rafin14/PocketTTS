@@ -3,6 +3,9 @@
 The gallery contains actual app captures from an ARM64 Android 16 phone at
 1272 × 2772, using Dark theme and default text size.
 
+These captures predate the latest compact-player and overflow-menu refinements.
+Refresh them on a device before presenting them as screenshots of the latest UI.
+
 Screens show Reader, Voices, Add Voice, recording, video extraction, trimming,
 enhancement review, Settings and About. The demonstration video uses an
 attributed Alba reference with a generated test pattern. No private voice

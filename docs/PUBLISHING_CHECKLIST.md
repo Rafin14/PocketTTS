@@ -27,6 +27,10 @@ limit and must remain in LFS. The publication checker examines tracked and
 non-ignored untracked candidates for common sensitive patterns, required assets
 and README links. Review files manually too; pattern scanning is not exhaustive.
 
+Default `PocketTTS-Voices-*.zip` backups are ignored because they contain personal
+audio. Renamed backups and individual WAV exports must also stay outside the
+checkout; ignore rules cannot identify private recordings by their content.
+
 Do not delete `.git` or run blanket cleanup commands to prepare a commit.
 Generated/native dependency caches are already ignored. Preserve useful local
 APKs, SDK configuration and test evidence outside publishable source.
@@ -41,6 +45,32 @@ Run relevant instrumentation and actual synthesis on ARM64 hardware. Check
 Reader transport and keyboard behavior, Android system TTS, custom-voice creation,
 edit/restore, microphone permission, theme modes and background playback.
 Include known limitations and skipped checks in the release notes.
+
+For sheet gestures, themed menus and compact Reader layout, run
+`UiRefinementTest` on the dedicated QA installation described in
+[isolated device testing](BUILDING.md#isolated-device-testing). Test actual
+Pocket TTS generation on ARM64 separately; generated-WAV emulator fixtures do
+not verify native synthesis.
+
+## Commit a source update
+
+Run the checks above, then inspect exactly what will be committed:
+
+```powershell
+git diff
+git add --all
+git diff --cached --check
+git diff --cached --stat
+git diff --cached
+python scripts/check_publishable.py
+git commit -m "feat: refine reader UI and add portable voice backups"
+git push origin HEAD
+```
+
+Review new files and binary assets as well as the text diff. Do not commit private
+audio, renamed backups, signing material or APKs. Use your configured remote in
+place of `origin` if different. This source update does not require changing the
+app version; increment it before distributing a new APK release.
 
 ## Sign and publish an APK
 

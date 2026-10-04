@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
     internal var sheet by mutableStateOf<String?>(null)
     internal var detail by mutableStateOf<Pair<ModelPack, PackVoice>?>(null)
     internal var confirmation by mutableStateOf<Confirmation?>(null)
-    internal data class Confirmation(val title: String, val message: String, val action: String, val confirm: () -> Unit)
+    internal data class Confirmation(val title: String, val message: String, val action: String, val destructive: Boolean = false, val confirm: () -> Unit)
     internal var packs by mutableStateOf<List<ModelPack>>(emptyList())
         private set
     internal var selection by mutableStateOf<Pair<ModelPack, PackVoice>?>(null)
@@ -74,6 +74,37 @@ class MainActivity : ComponentActivity() {
         if (uri != null && pack != null) showVideo(pack, uri) else sheet = "add"
     }
     private var pendingExport: Uri? = null
+    private var pendingVoiceExport: Pair<String, String>? = null
+    private val transferCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+    private var pendingVoiceTransfer: (() -> Unit)? = null
+    private val exportVoicesPicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri == null) transferNotice("Voice backup export cancelled.")
+        else transfer("Exporting voice backup…") { progress ->
+            requireNotNull(contentResolver.openOutputStream(uri, "wt")).use {
+                val result = VoiceBackup.export(applicationContext, it, transferCancelled::get, progress)
+                "Exported ${result.voices} voices. Keep the ZIP safe; it contains voice recordings."
+            }
+        }
+    }
+    private val importVoicesPicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) transferNotice("Voice backup import cancelled.")
+        else transfer("Validating voice backup…") { progress ->
+            requireNotNull(contentResolver.openInputStream(uri)).use {
+                val result = VoiceBackup.import(applicationContext, it, transferCancelled::get, progress)
+                "Imported ${result.voices} voices" + if (result.copies > 0) "; ${result.copies} ID conflicts restored as new copies." else "."
+            }
+        }
+    }
+    private val voiceWavPicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("audio/wav")) { uri ->
+        val selected = pendingVoiceExport; pendingVoiceExport = null
+        if (uri == null) transferNotice("WAV export cancelled.")
+        else if (selected != null) transfer("Exporting voice WAV…") { _ ->
+            requireNotNull(contentResolver.openOutputStream(uri, "wt")).use {
+                VoiceBackup.exportWav(applicationContext, selected.first, selected.second, it, transferCancelled::get)
+            }
+            "Voice WAV saved."
+        }
+    }
     private var cursorToRestore = 0
     private var scrollToRestore = 0
     private val main = Handler(Looper.getMainLooper())
@@ -139,6 +170,7 @@ class MainActivity : ComponentActivity() {
         importPackId = state?.getString("importPack")
         videoPackId = state?.getString("videoPack")
         pendingExport = state?.getString("pendingExport")?.let(Uri::parse)
+        state?.getString("voiceExportPack")?.let { pack -> state.getString("voiceExportId")?.let { pendingVoiceExport = pack to it } }
         cursorToRestore = state?.getInt("cursor", 0) ?: 0
         scrollToRestore = state?.getInt("editorScroll", 0) ?: 0
         speed = PlaybackSpeed.read(this)
@@ -217,6 +249,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
     override fun onDestroy() {
+        transferCancelled.set(true)
         main.removeCallbacks(persistDraft)
         if (readerBound) { readerService?.removeListener(readerListener); unbindService(readerConnection) }
         readerService = null
@@ -229,6 +262,8 @@ class MainActivity : ComponentActivity() {
         out.putString("importPack", importPackId)
         out.putString("videoPack", videoPackId)
         out.putString("pendingExport", pendingExport?.toString())
+        out.putString("voiceExportPack", pendingVoiceExport?.first)
+        out.putString("voiceExportId", pendingVoiceExport?.second)
         if (normalUi) { out.putInt("cursor", editor.selectionStart); out.putInt("editorScroll", editor.scrollY) }
         super.onSaveInstanceState(out)
     }
@@ -245,6 +280,7 @@ class MainActivity : ComponentActivity() {
         preview.changeSpeed(speed)
     }
     internal fun selectVoice(pack: ModelPack, voice: PackVoice) {
+        if (busy) return
         if (selection?.first?.id != pack.id || selection?.second?.id != voice.id) readerService?.stop()
         ModelPackRepository.selectPack(this, pack.id)
         ModelPackRepository.selectVoice(this, pack.id, voice.id)
@@ -265,9 +301,10 @@ class MainActivity : ComponentActivity() {
     }
     internal fun clearDocument() {
         if (!editing) return
-        confirmation = Confirmation(getString(R.string.reader_clear), getString(R.string.reader_clear_confirm), getString(R.string.reader_clear)) { editor.setText("") }
+        confirmation = Confirmation(getString(R.string.reader_clear), getString(R.string.reader_clear_confirm), getString(R.string.reader_clear), destructive = true) { editor.setText("") }
     }
     internal fun startReaderPlayback() {
+        if (busy) return
         val selected = selection ?: run { toast(R.string.status_no_model); return }
         val service = readerService ?: run { toast(R.string.reader_starting); return }
         // Snapshot the editable on the UI thread. Playback must not change editor focus
@@ -303,6 +340,49 @@ class MainActivity : ComponentActivity() {
         }
     }
     internal fun stopPreview() { preview.close() }
+    internal fun exportVoices() {
+        if (blocked()) return
+        stopPreview()
+        val date = java.time.LocalDate.now().toString()
+        runCatching { exportVoicesPicker.launch("PocketTTS-Voices-$date.zip") }
+            .onFailure { transferNotice("No system file picker is available.", true) }
+    }
+    internal fun importVoices() {
+        if (blocked()) return
+        stopPreview()
+        runCatching { importVoicesPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }
+            .onFailure { transferNotice("No system file picker is available.", true) }
+    }
+    internal fun exportVoiceWav(pack: ModelPack, voice: PackVoice) {
+        if (blocked()) return
+        stopPreview(); detail = null
+        pendingVoiceExport = pack.id to voice.id
+        runCatching { voiceWavPicker.launch(VoiceBackup.wavName(voice.displayName)) }
+            .onFailure { pendingVoiceExport = null; transferNotice("No system file picker is available.", true) }
+    }
+    private fun transferNotice(message: String, error: Boolean = false) {
+        notice = message; noticeError = error
+    }
+    private fun transfer(title: String, work: ((String) -> Unit) -> String) {
+        // Activity-result callbacks may arrive before initial loading after recreation.
+        if (busy && !documentReady) { pendingVoiceTransfer = { transfer(title, work) }; return }
+        if (blocked()) { transferNotice("Voice transfer not started. Stop Reader playback and try again.", true); return }
+        stopPreview(); busy = true; transferCancelled.set(false); transferNotice(title)
+        val context = applicationContext
+        thread(name = "pockettts-voice-transfer") {
+            val result = runCatching { work { status -> main.post { if (!isDestroyed) transferNotice(status) } } }
+            // Capture repository state off-thread; never scan imported collections on the UI thread.
+            val restored = runCatching { ModelPackRepository.list(context) }
+            main.post {
+                if (!isDestroyed) {
+                    busy = false
+                    restored.onSuccess { packs = it; currentPack = it.firstOrNull { pack -> pack.id == currentPack?.id } }
+                    selection = ModelPackRepository.resolveVoice(context, null)
+                    transferNotice(result.getOrElse { "Voice transfer failed: ${it.message ?: "check the file and free storage"}. An export destination may contain a partial file." }, result.isFailure)
+                }
+            }
+        }
+    }
     internal fun beginRename(pack: ModelPack, voice: PackVoice) {
         if (blocked() || !voice.userCreated) return
         stopPreview(); detail = null; renameError = null; renameTarget = pack to voice
@@ -344,7 +424,7 @@ class MainActivity : ComponentActivity() {
     internal fun deleteVoice(pack: ModelPack, voice: PackVoice) {
         if (blocked() || !voice.userCreated) return
         confirmation = Confirmation(getString(R.string.voice_delete_title, voice.displayName),
-            getString(R.string.voice_delete_message), getString(R.string.voice_delete)) {
+            getString(R.string.voice_delete_message), getString(R.string.voice_delete), destructive = true) {
             if (!blocked()) {
                 preview.close(); detail = null; busy = true
                 thread(name = "pockettts-delete-voice") {
@@ -491,6 +571,7 @@ class MainActivity : ComponentActivity() {
                     documentReady = result.isSuccess
                     if (result.isFailure) toast(R.string.reader_draft_failed)
                     saveDraft()
+                    pendingVoiceTransfer?.let { pendingVoiceTransfer = null; it() }
                 }
             }
         }

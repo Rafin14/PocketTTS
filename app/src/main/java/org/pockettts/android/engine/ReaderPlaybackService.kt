@@ -295,8 +295,7 @@ class ReaderPlaybackService : Service() {
     fun previousChunk() {
         val s = session ?: return
         if (state !in listOf(State.PLAYING, State.LOADING, State.PAUSED) || s.total == 0) return
-        val position = if (prepared) runCatching { player?.currentPosition?.toLong() ?: offsetMs }.getOrDefault(offsetMs) else offsetMs
-        openChunk(if (position > 0) index.coerceAtMost(s.total - 1) else (index - 1).coerceAtLeast(0))
+        if (index > 0) openChunk((index - 1).coerceAtMost(s.total - 1))
     }
     private fun finishPlayback() {
         releasePlayer(); playWhenReady = false; state = State.IDLE
@@ -335,7 +334,7 @@ class ReaderPlaybackService : Service() {
             s?.timeline?.duration ?: 0, s?.complete ?: false, s?.title ?: "Pocket TTS Reader", exporting,
             s?.document, range?.start ?: -1, range?.end ?: -1,
             if (state == State.STOPPED || state == State.ERROR) emptyList() else s?.peaks ?: emptyList(), s?.binSamples ?: 0, s?.samples ?: 0,
-            navigable && (index > 0 || position > 0), navigable && index + 1 < (s?.total ?: 0))
+            navigable && index > 0, navigable && index + 1 < (s?.total ?: 0))
     }
     @android.annotation.SuppressLint("NotificationPermission") // MediaStyle notifications with a session token are exempt on Android 13+.
     private fun publish(notification: Boolean = true) {

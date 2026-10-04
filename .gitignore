@@ -51,6 +51,8 @@ hs_err_pid*
 *.env
 keystore.properties
 signing-secret*
+# Voice exports contain personal audio; the bundled model ZIP remains publishable.
+PocketTTS-Voices-*.zip
 
 # Never blanket-ignore ONNX, tokenizer, ZIP, audio, or test-video assets.
 # PocketTTS-english-FP32.zip and app/src/main/assets/deepfilter/ are required.

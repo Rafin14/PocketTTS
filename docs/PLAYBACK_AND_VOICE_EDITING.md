@@ -11,6 +11,10 @@ waveform, progress, seeking, pause/resume, stop and speed controls. Starting a
 different preview releases the previous one. Completion, Stop or closing the
 sheet ends the preview. Sample playback is foreground-only.
 
+Shared bottom sheets resist short downward drags and residual scrolling flings.
+Use a deliberate larger downward drag, Close, Back or the outside scrim to dismiss.
+Internal scrolling, waveform seeking and trimming remain independent of dismissal.
+
 Voice management is unavailable while active Reader generation/output would
 conflict with the operation. Stop the Reader first.
 
@@ -29,8 +33,11 @@ Choose **Edit audio** to open the existing reference in the shared trimming and
 enhancement workflow:
 
 1. Select and preview a 3–30-second interval.
-2. Review the real Before/After DeepFilterNet3 output.
-3. Choose the sample to use, then **Save changes**.
+2. Optionally adjust **Volume** from 50–200%, or reset to 100%. Gain changes actual
+   samples, not just preview loudness. Peak limiting prevents clipping; the review
+   reports any reduced effective gain.
+3. Review the real Before/After DeepFilterNet3 output.
+4. Choose the sample to use, then **Save changes**.
 
 The operation updates the existing voice rather than creating a duplicate.
 Its ID, name and selection remain stable. Canceling leaves the saved reference
@@ -68,3 +75,13 @@ Use [the build guide](BUILDING.md#device-checks) for test commands.
 
 See [Reader](READER.md), [trimming](TRIMMING_AND_SPEED.md) and
 [DeepFilterNet3](DEEPFILTER.md).
+
+## Portable exports
+
+Every voice's action menu offers **Save .wav to device**. The system picker lets
+you choose and rename the destination. The export copies the currently accepted
+reference, including edits, rather than generating new speech or exporting an
+obsolete original. Canceling leaves the voice unchanged.
+
+Back up all custom voices from **Settings → Voice backup**. See the
+[backup guide](VOICE_BACKUP.md) for restoration, privacy and compatibility.

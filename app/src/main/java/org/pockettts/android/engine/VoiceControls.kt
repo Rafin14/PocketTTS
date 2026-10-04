@@ -45,10 +45,10 @@ internal fun PreviewControls(player: SamplePreview) {
             onValueChange = { seeking = it }, onValueChangeFinished = { seeking?.let { player.seekTo(it.toInt()) }; seeking = null },
             modifier = Modifier.semantics { contentDescription = "Preview position" })
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = player::toggle, enabled = !state.loading, modifier = Modifier.testTag("preview-toggle")) {
+            FilledTonalButton(onClick = player::toggle, enabled = !state.loading, modifier = Modifier.testTag("preview-toggle")) {
                 Text(stringResource(if (state.playing) R.string.reader_pause else R.string.reader_resume))
             }
-            TextButton(onClick = player::close, modifier = Modifier.testTag("preview-stop")) { Text(stringResource(R.string.reader_stop)) }
+            OutlinedButton(onClick = player::close, modifier = Modifier.testTag("preview-stop")) { Text(stringResource(R.string.reader_stop)) }
         }
         Text("${audioTime(state.positionMs)} / ${audioTime(state.durationMs)}", style = MaterialTheme.typography.labelMedium)
         SpeedControl(player.speed, player::changeSpeed)

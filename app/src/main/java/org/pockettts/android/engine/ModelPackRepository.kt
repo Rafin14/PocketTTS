@@ -219,7 +219,7 @@ internal object ModelPackRepository {
         val label = name.trim()
         require(label.isNotEmpty() && label.length <= 80) { "Enter a name between 1 and 80 characters." }
         require(pack.voices.none { it.id != voiceId && it.displayName.equals(label, true) }) { "A voice with that name already exists." }
-        pack.copy(voices = pack.voices.map { if (it.id == voiceId) it.copy(displayName = label) else it }).also(::writeManifest)
+        pack.copy(voices = pack.voices.map { if (it.id == voiceId) it.copy(displayName = label) else it }).also { writeManifest(it) }
     }
 
     /** New reference + version files first; AtomicFile manifest commits the pointer last. */
@@ -269,6 +269,59 @@ internal object ModelPackRepository {
         val pack = requireNotNull(find(context, packId))
         val voice = pack.voices.first { it.id == voiceId }
         return updateVoiceAudio(context, packId, voiceId, originalSource(pack, voice), restore = true)
+    }
+
+    /** Validate all packs first, then add copies with rollback; existing references never change. */
+    fun restoreBackup(context: Context, voices: List<VoiceBackup.Voice>, cancelled: () -> Boolean): VoiceBackup.Result = PocketEngine.updateModels {
+        val packs = list(context).associateBy { it.id }
+        voices.forEach { voice ->
+            val pack = requireNotNull(packs[voice.packId]) { "Install the matching model before restoring its voices." }
+            require(pack.languageTag == voice.language && pack.precision == voice.precision) { "Voice backup model is incompatible." }
+        }
+        val originals = voices.map { it.packId }.distinct().associateWith { packs.getValue(it).manifestFile.readBytes() }
+        val created = mutableListOf<File>()
+        var copies = 0
+        try {
+            voices.groupBy { it.packId }.forEach { (packId, entries) ->
+                val pack = packs.getValue(packId)
+                val current = pack.voices.toMutableList()
+                val provenance = mutableMapOf<String, String>()
+                entries.forEach { entry ->
+                    check(!cancelled()) { "Import cancelled" }
+                    var id = entry.id
+                    if (current.any { it.id == id } || recordingArchive(pack, id).exists()) { id = "voice-${UUID.randomUUID()}"; copies++ }
+                    var name = entry.name; var suffix = 2
+                    while (current.any { it.displayName.equals(name, true) }) {
+                        val tail = " (${suffix++})"; name = entry.name.take(80 - tail.length) + tail
+                    }
+                    val reference = File(pack.voicesDir, "reference-${UUID.randomUUID()}.wav")
+                    created += reference; entry.audio.getValue("current").copyTo(reference)
+                    val archive = recordingArchive(pack, id)
+                    check(!archive.exists()); created += archive; check(archive.mkdirs())
+                    entry.audio.getValue("original").copyTo(File(archive, "original.wav"))
+                    val version = File(archive, reference.nameWithoutExtension).apply { check(mkdirs()) }
+                    (entry.audio["before"] ?: entry.audio.getValue("current")).copyTo(File(version, "before.wav"))
+                    entry.audio["enhanced"]?.copyTo(File(version, "enhanced.wav"))
+                    current += PackVoice(id, name, reference.name, true, entry.edited)
+                    provenance[id] = entry.sourceId
+                }
+                check(!cancelled()) { "Import cancelled" }
+                writeManifest(pack.copy(voices = current), provenance)
+            }
+            VoiceBackup.Result(voices.size, copies)
+        } catch (failure: Throwable) {
+            // Restore manifest pointers before removing this operation's files.
+            var rolledBack = true
+            originals.forEach { (id, bytes) ->
+                runCatching {
+                    val atomic = android.util.AtomicFile(packs.getValue(id).manifestFile)
+                    val output = atomic.startWrite()
+                    try { output.write(bytes); atomic.finishWrite(output) } catch (error: Throwable) { atomic.failWrite(output); throw error }
+                }.onFailure { rolledBack = false; failure.addSuppressed(it) }
+            }
+            if (rolledBack) created.asReversed().forEach { if (it.isDirectory) it.deleteRecursively() else it.delete() }
+            throw failure
+        }
     }
 
     fun deleteVoice(context: Context, packId: String, voiceId: String): Unit = PocketEngine.updateModels {
@@ -373,13 +426,14 @@ internal object ModelPackRepository {
         )
     }
 
-    private fun writeManifest(pack: ModelPack) {
+    private fun writeManifest(pack: ModelPack, backupOrigins: Map<String, String> = emptyMap()) {
         pack.root.mkdirs()
         val previous = if (pack.manifestFile.isFile) JSONObject(pack.manifestFile.readText()) else JSONObject()
         val oldVoices = previous.optJSONArray("voices") ?: JSONArray()
         val voices = JSONArray().apply {
             pack.voices.forEach { voice ->
                 val metadata = (0 until oldVoices.length()).map { oldVoices.getJSONObject(it) }.firstOrNull { it.optString("id") == voice.id } ?: JSONObject()
+                backupOrigins[voice.id]?.let { metadata.put("backupSourceId", it) }
                 put(metadata.put("id", voice.id).put("name", voice.displayName).put("file", voice.fileName).put("userCreated", voice.userCreated).put("audioEdited", voice.audioEdited))
             }
         }

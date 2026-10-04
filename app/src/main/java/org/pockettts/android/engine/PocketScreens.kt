@@ -16,8 +16,11 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,6 +52,10 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import kotlinx.coroutines.launch
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 
 @Composable
 internal fun PocketApp(app: MainActivity) {
@@ -83,7 +90,10 @@ internal fun PocketApp(app: MainActivity) {
             shape = MaterialTheme.shapes.extraLarge, containerColor = LocalGlass.current.sheet,
             title = { Text(prompt.title) },
             text = { Text(prompt.message, Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) },
-            confirmButton = { TextButton(onClick = { app.confirmation = null; prompt.confirm() }) { Text(prompt.action) } },
+            confirmButton = { FilledTonalButton(onClick = { app.confirmation = null; prompt.confirm() },
+                colors = if (prompt.destructive) ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+                    else ButtonDefaults.filledTonalButtonColors()) { Text(prompt.action) } },
             dismissButton = { TextButton(onClick = { app.confirmation = null }) { Text(stringResource(android.R.string.cancel)) } })
     }
     app.recordingDialog?.Content()
@@ -104,7 +114,7 @@ internal fun PocketApp(app: MainActivity) {
                         isError = app.renameError != null, modifier = Modifier.testTag("rename-name"))
                     app.renameError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
-            }, confirmButton = { TextButton(onClick = { app.renameVoice(name) }, enabled = !app.busy && name.trim().isNotEmpty() && name.trim().length <= 80,
+            }, confirmButton = { FilledTonalButton(onClick = { app.renameVoice(name) }, enabled = !app.busy && name.trim().isNotEmpty() && name.trim().length <= 80,
                 modifier = Modifier.testTag("rename-save")) { Text("Save") } },
             dismissButton = { TextButton(onClick = { app.renameTarget = null }, enabled = !app.busy) { Text(stringResource(android.R.string.cancel)) } })
     }
@@ -113,7 +123,8 @@ internal fun PocketApp(app: MainActivity) {
 @Composable
 private fun ReaderScreen(app: MainActivity) {
     val compact = LocalConfiguration.current.screenHeightDp < 560 || LocalDensity.current.fontScale > 1.3f
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val compactEditorHeight = (maxHeight * .6f).coerceAtLeast(160.dp)
         // Small windows and large accessibility fonts scroll the whole layout; the editor
         // remains independently scrollable. Normal phones dedicate remaining height to text.
         Column(Modifier.fillMaxSize().testTag("reader-scroll").pointerInput(app) {
@@ -125,7 +136,7 @@ private fun ReaderScreen(app: MainActivity) {
             }
         }.then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
             .padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            DocumentEditor(app, if (compact) Modifier.fillMaxWidth().height(260.dp)
+            DocumentEditor(app, if (compact) Modifier.fillMaxWidth().height(compactEditorHeight)
                 else Modifier.fillMaxWidth().weight(1f))
             PlaybackPanel(app)
             Spacer(Modifier.height(4.dp))
@@ -182,7 +193,7 @@ private fun PlaybackPanel(app: MainActivity) {
     val snapshot = app.snapshot
     val active = snapshot.state == ReaderPlaybackService.State.PLAYING || snapshot.state == ReaderPlaybackService.State.LOADING
     val paused = snapshot.state == ReaderPlaybackService.State.PAUSED
-    GlassCard(Modifier.fillMaxWidth().testTag("playback"), padding = 12.dp) {
+    GlassCard(Modifier.fillMaxWidth().testTag("playback"), padding = 8.dp) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 PlaybackStatus(snapshot)
@@ -215,11 +226,16 @@ private fun PlaybackPanel(app: MainActivity) {
             var seekDuration by remember { mutableLongStateOf(0L) }
             val duration = snapshot.availableMs
             val progress = if (duration > 0) snapshot.positionMs.toFloat() / duration else 0f
-            ReaderWaveform(snapshot, app::seekReader)
             Slider(value = seeking ?: progress.coerceIn(0f, 1f),
                 onValueChange = { if (seeking == null) seekDuration = duration; seeking = it },
                 onValueChangeFinished = { seeking?.let { app.seekReader((it * seekDuration).toLong()) }; seeking = null },
-                enabled = duration > 0, modifier = Modifier.fillMaxWidth().semantics { contentDescription = app.getString(R.string.reader_seek) })
+                enabled = duration > 0, modifier = Modifier.fillMaxWidth().testTag("reader-seek")
+                    .semantics { contentDescription = app.getString(R.string.reader_seek) },
+                track = {
+                    PlaybackWaveform(snapshot.waveform, snapshot.waveformBinSamples, snapshot.waveformSamples,
+                        seeking?.let { (it * seekDuration).toLong() } ?: snapshot.positionMs, duration, app::seekReader,
+                        "reader-waveform", app.getString(R.string.reader_waveform), height = 32.dp, interactive = false)
+                })
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("${formatTime(seeking?.let { (it * seekDuration).toLong() } ?: snapshot.positionMs)} / ${formatTime(duration)}",
@@ -248,27 +264,22 @@ private fun Modifier.collapseWithIme(): Modifier {
 }
 
 @Composable
-private fun ReaderWaveform(snapshot: ReaderPlaybackService.Snapshot, seek: (Long) -> Unit) {
-    PlaybackWaveform(snapshot.waveform, snapshot.waveformBinSamples, snapshot.waveformSamples,
-        snapshot.positionMs, snapshot.availableMs, seek, "reader-waveform", stringResource(R.string.reader_waveform))
-}
-
-@Composable
 internal fun PlaybackWaveform(peaks: List<Float>, binSamples: Long, samples: Long, positionMs: Long,
-                             durationMs: Long, seek: (Long) -> Unit, tag: String, description: String) {
+                             durationMs: Long, seek: (Long) -> Unit, tag: String, description: String,
+                             height: androidx.compose.ui.unit.Dp = 48.dp, interactive: Boolean = true) {
     val accent = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .4f)
     val progress = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     val currentSeek = rememberUpdatedState(seek)
-    Canvas(Modifier.fillMaxWidth().height(48.dp).testTag(tag)
-        .semantics {
+    val interaction = if (!interactive) Modifier else Modifier.semantics {
             contentDescription = description
             progressBarRangeInfo = ProgressBarRangeInfo(positionMs.toFloat(), 0f..durationMs.coerceAtLeast(1).toFloat())
             setProgress { if (durationMs > 0) { seek(it.toLong()); true } else false }
         }
         .pointerInput(durationMs) {
             detectTapGestures { if (durationMs > 0) currentSeek.value((it.x / size.width.coerceAtLeast(1) * durationMs).toLong()) }
-        }) {
+        }
+    Canvas(Modifier.fillMaxWidth().height(height).testTag(tag).then(interaction)) {
         if (peaks.isEmpty() || samples <= 0) {
             drawLine(muted, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 2.dp.toPx())
         } else {
@@ -332,17 +343,31 @@ private fun VoicesScreen(app: MainActivity) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(voice.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
                         if (selected) Icon(Icons.Default.CheckCircle, stringResource(R.string.ui_selected), tint = MaterialTheme.colorScheme.primary)
-                        if (voice.userCreated) {
+                        run {
                             var menu by remember { mutableStateOf(false) }
                             Box {
-                                IconButton(onClick = { menu = true }, modifier = Modifier.testTag("voice-actions-${voice.id}")) {
+                                IconButton(onClick = { menu = true }, enabled = !app.busy, modifier = Modifier.testTag("voice-actions-${voice.id}")) {
                                     Icon(Icons.Default.MoreVert, "Voice actions")
                                 }
-                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                    DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; app.beginRename(pack, voice) })
-                                    DropdownMenuItem(text = { Text("Edit audio") }, onClick = { menu = false; app.editVoice(pack, voice) })
-                                    if (voice.audioEdited) DropdownMenuItem(text = { Text("Restore Original") }, onClick = { menu = false; app.restoreVoice(pack, voice) })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.voice_delete)) }, onClick = { menu = false; app.deleteVoice(pack, voice) })
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false },
+                                    modifier = Modifier.testTag("voice-menu"), shape = MaterialTheme.shapes.medium,
+                                    containerColor = LocalGlass.current.sheet, tonalElevation = 0.dp, shadowElevation = 2.dp,
+                                    border = BorderStroke(1.dp, LocalGlass.current.border)) {
+                                    DropdownMenuItem(text = { Text("Save .wav to device") }, onClick = { menu = false; app.exportVoiceWav(pack, voice) },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, null, Modifier.size(20.dp)) })
+                                    if (voice.userCreated) {
+                                        HorizontalDivider(Modifier.padding(horizontal = 12.dp), thickness = .5.dp, color = LocalGlass.current.border)
+                                        DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; app.beginRename(pack, voice) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, null, Modifier.size(20.dp)) })
+                                        DropdownMenuItem(text = { Text("Edit audio") }, onClick = { menu = false; app.editVoice(pack, voice) },
+                                            leadingIcon = { Icon(Icons.Default.Settings, null, Modifier.size(20.dp)) })
+                                        if (voice.audioEdited) DropdownMenuItem(text = { Text("Restore Original") }, onClick = { menu = false; app.restoreVoice(pack, voice) },
+                                            leadingIcon = { Icon(Icons.Default.Refresh, null, Modifier.size(20.dp)) })
+                                        HorizontalDivider(Modifier.padding(horizontal = 12.dp), thickness = .5.dp, color = LocalGlass.current.border)
+                                        DropdownMenuItem(text = { Text(stringResource(R.string.voice_delete)) }, onClick = { menu = false; app.deleteVoice(pack, voice) },
+                                            colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error, leadingIconColor = MaterialTheme.colorScheme.error),
+                                            leadingIcon = { Icon(Icons.Default.Delete, null, Modifier.size(20.dp)) })
+                                    }
                                 }
                             }
                         }
@@ -351,9 +376,9 @@ private fun VoicesScreen(app: MainActivity) {
                     if (selected) Text(stringResource(R.string.ui_selected), color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { app.previewVoice(pack, voice) }, enabled = !app.busy) { Text(stringResource(R.string.voice_preview)) }
-                        TextButton(onClick = { app.selectVoice(pack, voice) }, enabled = !selected) { Text(stringResource(R.string.voice_use)) }
-                        TextButton(onClick = { app.detail = pack to voice }) { Text(stringResource(R.string.ui_details)) }
+                        OutlinedButton(onClick = { app.previewVoice(pack, voice) }, enabled = !app.busy) { Text(stringResource(R.string.voice_preview)) }
+                        FilledTonalButton(onClick = { app.selectVoice(pack, voice) }, enabled = !selected && !app.busy) { Text(stringResource(R.string.voice_use)) }
+                        TextButton(onClick = { app.detail = pack to voice }, enabled = !app.busy) { Text(stringResource(R.string.ui_details)) }
                     }
                 }
             }
@@ -375,6 +400,21 @@ private fun SettingsScreen(app: MainActivity) {
     LazyColumn(Modifier.fillMaxSize().testTag("settings-list"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { Notice(app) }
         item {
+            GlassCard(Modifier.fillMaxWidth().testTag("voice-backup")) {
+                SectionTitle("Voice backup")
+                Text("Save your custom voices before uninstalling. The ZIP contains private voice recordings, names and original audio. Keep it safe; nothing is uploaded by Pocket TTS.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = app::exportVoices, enabled = !app.busy,
+                        modifier = Modifier.testTag("backup-export")) { Text("Export Voices") }
+                    OutlinedButton(onClick = app::importVoices, enabled = !app.busy,
+                        modifier = Modifier.testTag("backup-import")) { Text("Import Voices") }
+                }
+                Text("Conflicts are restored as new copies, never overwritten. Save to a local folder for an offline backup.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        item {
             GlassCard(Modifier.fillMaxWidth()) {
                 SectionTitle(stringResource(R.string.reader_appearance))
                 ChoiceRow(appearanceLabel(app.appearance), stringResource(R.string.ui_appearance_hint)) { app.sheet = "appearance" }
@@ -385,11 +425,11 @@ private fun SettingsScreen(app: MainActivity) {
                 SectionTitle(stringResource(R.string.engine_settings))
                 ChoiceRow(stringResource(R.string.voice_default), app.selection?.second?.displayName ?: stringResource(R.string.no_voice)) { app.sheet = "voice" }
                 ChoiceRow(stringResource(R.string.generation_parameters), stringResource(R.string.ui_engine_hint)) { app.sheet = "engine" }
-                TextButton(onClick = app::openTtsSettings) { Text(stringResource(R.string.open_android_tts)) }
+                OutlinedButton(onClick = app::openTtsSettings) { Text(stringResource(R.string.open_android_tts)) }
             }
         }
         item {
-            TextButton(onClick = app::showAbout, modifier = Modifier.fillMaxWidth().testTag("about-entry")) { Text(stringResource(R.string.about_app)) }
+            OutlinedButton(onClick = app::showAbout, modifier = Modifier.fillMaxWidth().testTag("about-entry")) { Text(stringResource(R.string.about_app)) }
         }
     }
 }
@@ -427,13 +467,46 @@ private fun ChoiceRow(title: String, subtitle: String? = null, selected: Boolean
 @Composable
 internal fun GlassSheet(title: String, onDismiss: () -> Unit, footer: (@Composable () -> Unit)? = null, content: LazyListScope.() -> Unit) {
     val shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    val density = LocalDensity.current
+    var expandedOffset by remember { mutableFloatStateOf(Float.NaN) }
+    var sheetHeight by remember { mutableFloatStateOf(0f) }
+    val stateHolder = remember { arrayOfNulls<SheetState>(1) }
+    val confirmDismiss = remember(density) { { value: SheetValue ->
+        val offset = stateHolder[0]?.let { runCatching { it.requireOffset() }.getOrNull() }
+        val distance = if (offset == null) 0f else offset - expandedOffset
+        // Native settling still owns scrolling/animation. Veto short drags, even fast
+        // flings; explicit dismissal at the expanded anchor (scrim/back) remains valid.
+        value != SheetValue.Hidden || !distance.isFinite() || distance <= 1f ||
+            distance >= minOf(with(density) { 224.dp.toPx() }, sheetHeight * .35f)
+    } }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = confirmDismiss)
+    stateHolder[0] = sheetState
+    val contentScroll = remember(sheetState, density) {
+        object : NestedScrollConnection {
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                val distance = runCatching { sheetState.requireOffset() - expandedOffset }.getOrDefault(0f)
+                // Do not turn a list's remaining downward fling into a zero-distance
+                // dismissal. Consume only leftover velocity, never content scrolling.
+                return if (available.y > 0 && (!distance.isFinite() ||
+                    distance < minOf(with(density) { 224.dp.toPx() }, sheetHeight * .35f)))
+                    Velocity(0f, available.y) else Velocity.Zero
+            }
+        }
+    }
+    LaunchedEffect(sheetState) {
+        snapshotFlow { sheetState.currentValue to runCatching { sheetState.requireOffset() }.getOrDefault(Float.NaN) }.collect { (value, offset) ->
+            if (value == SheetValue.Expanded && offset.isFinite())
+                expandedOffset = if (expandedOffset.isFinite()) minOf(expandedOffset, offset) else offset
+        }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState,
+        modifier = Modifier.testTag("glass-sheet").onSizeChanged { sheetHeight = it.height.toFloat(); expandedOffset = Float.NaN },
         shape = shape, containerColor = LocalGlass.current.sheet, tonalElevation = 0.dp,
         contentColor = MaterialTheme.colorScheme.onSurface,
         dragHandle = {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 HorizontalDivider(color = LocalGlass.current.border)
-                BottomSheetDefaults.DragHandle()
+                BottomSheetDefaults.DragHandle(Modifier.testTag("sheet-handle"))
             }
         }) {
         val view = LocalView.current
@@ -449,11 +522,11 @@ internal fun GlassSheet(title: String, onDismiss: () -> Unit, footer: (@Composab
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, modifier = Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium,
                 maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp).testTag("sheet-close")) {
+            FilledTonalIconButton(onClick = onDismiss, modifier = Modifier.size(48.dp).testTag("sheet-close")) {
                 Icon(Icons.Default.Close, stringResource(R.string.ui_close))
             }
         }
-        LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 600.dp).testTag("sheet-content"),
+        LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 600.dp).nestedScroll(contentScroll).testTag("sheet-content"),
             contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             content()
@@ -517,9 +590,9 @@ private fun AppSheets(app: MainActivity) {
             item { Text(voice.fileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (ModelPackRepository.recordingSource(pack, voice, false) != null) item {
                 SectionTitle(stringResource(R.string.df_saved_sources))
-                TextButton(onClick = { app.previewVoice(pack, voice, false) }) { Text(stringResource(R.string.df_before)) }
+                OutlinedButton(onClick = { app.previewVoice(pack, voice, false) }) { Text(stringResource(R.string.df_before)) }
                 if (ModelPackRepository.recordingSource(pack, voice, true) != null)
-                    TextButton(onClick = { app.previewVoice(pack, voice, true) }) { Text(stringResource(R.string.df_after)) }
+                    OutlinedButton(onClick = { app.previewVoice(pack, voice, true) }) { Text(stringResource(R.string.df_after)) }
             }
             item {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -529,10 +602,11 @@ private fun AppSheets(app: MainActivity) {
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.voice_delete)) }
                 }
                 if (voice.userCreated) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { app.beginRename(pack, voice) }) { Text("Rename") }
-                    TextButton(onClick = { app.editVoice(pack, voice) }) { Text("Edit audio") }
-                    if (voice.audioEdited) TextButton(onClick = { app.restoreVoice(pack, voice) }) { Text("Restore Original") }
+                    OutlinedButton(onClick = { app.beginRename(pack, voice) }) { Text("Rename") }
+                    FilledTonalButton(onClick = { app.editVoice(pack, voice) }) { Text("Edit audio") }
+                    if (voice.audioEdited) OutlinedButton(onClick = { app.restoreVoice(pack, voice) }) { Text("Restore Original") }
                 }
+                OutlinedButton(onClick = { app.exportVoiceWav(pack, voice) }, modifier = Modifier.fillMaxWidth()) { Text("Save .wav to device") }
             }
         }
     }

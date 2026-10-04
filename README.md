@@ -25,18 +25,24 @@ This is an unofficial community application, not an official Kyutai Android rele
 - Apply bundled **DeepFilterNet3** noise reduction and compare real before/after waveforms and audio. Keep the unenhanced sample if preferred.
 - Name/save/select custom voices and preview them directly in an expanded player with waveform, seeking and speed controls.
 - Rename, trim or denoise saved custom voices from their action menu. Edits preserve the voice ID, name and original source; **Restore Original** restores the actual cloning reference and clears obsolete derived audio.
+- Adjust saved-reference volume from **50–200%**, with peak-limited PCM gain before enhancement.
+- **Save .wav to device** exports any voice's accepted reference through Android's file picker.
+- **Settings → Voice backup** exports/imports a portable ZIP of all custom voices, including original and available processed audio. Conflicting IDs are restored as new copies, never overwritten. See [voice backup](docs/VOICE_BACKUP.md).
 - Retain original, trimmed, and enhanced recordings for saved voices. Voice cloning conditions the model on the reference sample; it does not train a new model.
 
 ### Make it yours
 
 - Material 3 with restrained glass surfaces, muted periwinkle accents, and readable tonal hierarchy.
 - System, Light, Dark, and AMOLED appearance modes.
+- Stable bottom sheets require a deliberate larger dismissal drag; themed voice-action menus group exports, edits, and deletion with subtle separators.
 - Generation controls for temperature, LSD steps, CPU threads, text segment size, and sentence pauses.
 - In-app About and enhancement-license information.
 
 ## Screenshots
 
 Screenshots from the app running on an Android 16 ARM64 phone. The video example uses the bundled Alba reference with a generated test picture; no personal recordings are shown.
+
+The gallery predates the latest compact-player and overflow-menu refinements; current spacing and menu appearance may differ.
 
 <table>
 <tr>

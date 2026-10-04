@@ -88,11 +88,22 @@ class PlaybackVoiceEditingTest {
                 media.controller.transportControls.skipToNext()
             }
             ui.waitUntil(10000) { app.snapshot.chunk == 3 && app.snapshot.state == ReaderPlaybackService.State.PLAYING }
+            ui.runOnIdle { service.seekTo(7400) }
+            ui.waitUntil(10000) { app.snapshot.chunk == 3 && field(service, "prepared") == true && field(service, "seeking") == false }
+            ui.runOnIdle {
+                val staleThird = field(service, "player") as MediaPlayer
+                service.previousChunk()
+                completion.invoke(service, session, staleThird, 2)
+                assertEquals(2, app.snapshot.chunk)
+            }
+            ui.waitUntil(10000) { app.snapshot.chunk == 2 && app.snapshot.state == ReaderPlaybackService.State.PLAYING }
+            ui.runOnIdle { service.previousChunk() }
+            ui.waitUntil(10000) { app.snapshot.chunk == 1 && app.snapshot.state == ReaderPlaybackService.State.PLAYING }
             ui.runOnIdle { service.pause(); service.seekTo(3500) }
             ui.waitUntil(10000) { field(service, "prepared") == true && field(service, "seeking") == false }
             ui.runOnIdle {
-                service.previousChunk() // Actual offset > 0 restarts this chunk, staying paused.
-                assertEquals(2, app.snapshot.chunk); assertEquals(ReaderPlaybackService.State.PAUSED, app.snapshot.state)
+                service.previousChunk() // Offset must not turn Previous into Restart current.
+                assertEquals(1, app.snapshot.chunk); assertEquals(ReaderPlaybackService.State.PAUSED, app.snapshot.state)
             }
             ui.waitUntil(10000) { field(service, "prepared") == true }
             ui.runOnIdle { service.seekTo(2850); service.resume() }
