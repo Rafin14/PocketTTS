@@ -8,6 +8,10 @@ This is an unofficial community application, not an official Kyutai release.
 
 **Requirements:** Android 8.0 or newer, ARM64. The English FP32 model and Alba voice are bundled; no model download is required after installation.
 
+## Demo
+
+![Pocket TTS Android app demo](docs/PocketTTS_demo.gif)
+
 ## Features
 
 ### Read and listen
