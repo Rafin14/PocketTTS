@@ -8,7 +8,7 @@ support touch, keyboard and accessibility actions.
 
 ## Read and edit
 
-1. Open Reader and choose **Edit Mode** to type or paste text.
+1. Open Reader and choose **Edit** to type or paste text.
 2. Choose a voice and press **Play**. Playback can start with the keyboard open.
 3. Use **Done editing** for read-only scrolling.
 

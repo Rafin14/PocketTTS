@@ -20,7 +20,8 @@ on compact layouts. Changes to the document invalidate cached speech.
 `AudioPeaks` collects real synthesis PCM while the service writes its WAV cache.
 It retains at most 512 peaks by merging bins as duration grows, rather than
 keeping a second full audio buffer. Playback position determines the waveform
-playhead; the waveform and accessible slider both support seeking.
+playhead. The waveform forms the accessible slider's track, combining visual
+progress and seeking in one control.
 
 Voice previews inspect actual WAV peaks on a worker. Recording waveforms use
 microphone PCM amplitude. Neither display uses a decorative looping waveform.

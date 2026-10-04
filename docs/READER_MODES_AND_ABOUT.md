@@ -2,7 +2,7 @@
 
 ## View and Edit modes
 
-Reader defaults to read-only scrolling. **Edit Mode** enables the native Android
+Reader defaults to read-only scrolling. **Edit** enables the native Android
 editor's typing, cursor, text selection and clipboard operations. **Done editing**
 returns to read-only mode and hides the keyboard without changing the document.
 

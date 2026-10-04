@@ -1,10 +1,9 @@
 # Bundled official Pocket TTS voices
 
-**Current application:** only English FP32 / Alba is bundled. Other rows below
-are retained attribution for the optional legacy export tooling, not a claim of
-current multilingual APK support. The test-only `speech-test.mp4` is an
-eight-second Alba excerpt encoded as stereo AAC with a generated video pattern;
-its screenshots illustrate video import and waveform/enhancement features.
+The Android app bundles English FP32 and the Alba reference voice. Optional
+legacy export tooling does not imply multilingual support in the distributed APK.
+The test-only `speech-test.mp4` is an eight-second Alba excerpt encoded as stereo
+AAC with a generated video pattern; it demonstrates video import and audio editing.
 
 The release model packs bundle only the official default reference voices
 defined by Kyutai Pocket TTS. They do not contain user-imported recordings.

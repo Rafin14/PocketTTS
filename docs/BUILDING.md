@@ -90,17 +90,18 @@ unsigned APK as installable. Use Android Build Tools:
 apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
 ```
 
-Copy a tested signed APK to ignored `release-assets/` as
-`Pocket-TTS-v0.5.2-release.apk`. Copying/renaming does not alter APK contents
+Copy a tested signed APK to ignored `release-assets/`, using the release version
+in its filename (for example, `Pocket-TTS-v0.5.2-release.apk`). Copying/renaming
+does not alter APK contents
 or signing. Keep the key for all subsequent updates. A differently signed
 debug/old release cannot be updated in place; uninstalling removes private
 app data, so back up first.
 
-Version name/code are in `app/build.gradle.kts`: currently 0.5.2 / 22.
+Version name/code are defined in `app/build.gradle.kts`.
 Increment versionCode for updates, and choose the corresponding versionName.
 No release signing secrets are included or needed for debug builds.
 
-For GitHub web/CLI publishing steps, see [README → APK releases](../README.md#apk-releases).
+For source and APK publishing steps, see the [publishing checklist](PUBLISHING_CHECKLIST.md).
 
 ## Isolated device testing
 

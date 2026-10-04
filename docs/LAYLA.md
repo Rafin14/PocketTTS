@@ -5,7 +5,7 @@ API, which Layla can discover as a native voice provider.
 
 1. Install the APK.
 2. Open Pocket TTS and wait for the bundled English model/Alba voice to prepare locally; optionally add an authorized custom voice.
-3. In Android settings, choose **Pocket TTS Android Engine** as the preferred
+3. In Android settings, choose **Pocket TTS** as the preferred
    text-to-speech engine.
 4. Fully close and restart Layla so it refreshes Android voices.
 5. Edit a character, open its advanced voice settings, and select a voice from

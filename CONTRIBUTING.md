@@ -14,6 +14,11 @@ architecture/model changes first.
 - Never submit private recordings, tokens, signing keys, local SDK paths or
   diagnostic logs containing private text.
 - Preserve notices and document every new third-party component.
+- Keep user guides aligned with visible controls. Describe features and limitations
+  without private workstation paths, chat transcripts, or unverified test claims.
+
+See [Building and testing](docs/BUILDING.md) for setup and isolated device tests,
+and the [publishing checklist](docs/PUBLISHING_CHECKLIST.md) for source review.
 
 Contributions to original app code use the repository's MIT license.
 Third-party sources/models/voices retain their own licenses and attribution.

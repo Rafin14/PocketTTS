@@ -63,14 +63,15 @@ git diff --cached --check
 git diff --cached --stat
 git diff --cached
 python scripts/check_publishable.py
-git commit -m "feat: refine reader UI and add portable voice backups"
+git commit
 git push origin HEAD
 ```
 
 Review new files and binary assets as well as the text diff. Do not commit private
 audio, renamed backups, signing material or APKs. Use your configured remote in
-place of `origin` if different. This source update does not require changing the
-app version; increment it before distributing a new APK release.
+place of `origin` if different. Write a commit message describing your update.
+Source-only changes do not require an app version increment; increment it before
+distributing a new APK release.
 
 ## Sign and publish an APK
 
