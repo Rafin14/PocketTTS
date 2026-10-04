@@ -103,7 +103,6 @@ Do not clone voices without permission or present generated speech as an authent
 | [Appearance and Reader modes](docs/READER_MODES_AND_ABOUT.md) | Themes, scrolling behavior, and About |
 | [Audio limits and accessibility](docs/LIMITS_AND_UI_AUDIT.md) | Input limits, responsive layout, and accessibility |
 | [Building and testing](docs/BUILDING.md) | Command-line/Android Studio setup, device checks, and signing |
-| [Publishing](docs/PUBLISHING_CHECKLIST.md) | Source review, Git LFS, and APK release checklist |
 
 ## Build from source
 

@@ -1,4 +1,4 @@
-# Building, testing and signing
+# Building & testing 
 
 ## Prerequisites
 
@@ -66,54 +66,3 @@ ARM64 hardware; x86 emulator translation is unsupported for that graph. A skippe
 native test is not a successful synthesis check. Use a dedicated test installation:
 instrumentation can change settings and create/delete test voices.
 
-## Release signing
-
-Keep the keystore outside the repository. Supply all four environment variables
-through your local shell or secret manager (do not commit an environment script):
-
-- `POCKETTTS_KEYSTORE_PATH`: absolute path to the private keystore
-- `POCKETTTS_KEYSTORE_PASSWORD`
-- `POCKETTTS_KEY_ALIAS`
-- `POCKETTTS_KEY_PASSWORD`
-
-Then:
-
-```bash
-./gradlew :app:assembleRelease :app:lintRelease
-```
-
-Output with signing configured: `app/build/outputs/apk/release/app-release.apk`.
-Without all four variables: `app-release-unsigned.apk`. Do not distribute an
-unsigned APK as installable. Use Android Build Tools:
-
-```bash
-apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
-```
-
-Copy a tested signed APK to ignored `release-assets/`, using the release version
-in its filename (for example, `Pocket-TTS-v0.5.2-release.apk`). Copying/renaming
-does not alter APK contents
-or signing. Keep the key for all subsequent updates. A differently signed
-debug/old release cannot be updated in place; uninstalling removes private
-app data, so back up first.
-
-Version name/code are defined in `app/build.gradle.kts`.
-Increment versionCode for updates, and choose the corresponding versionName.
-No release signing secrets are included or needed for debug builds.
-
-For source and APK publishing steps, see the [publishing checklist](PUBLISHING_CHECKLIST.md).
-
-## Isolated device testing
-
-If your installed app uses a different signing key, build a separate QA package
-without uninstalling it or touching its voices:
-
-```powershell
-.\gradlew.bat :app:assembleDebug :app:assembleDebugAndroidTest -PisolatedDeviceTest=true
-```
-
-This optional debug flag changes only the package ID to
-`org.pockettts.android.engine.qa`. The test package is
-`org.pockettts.android.engine.qa.test`. Default debug and release builds keep
-the existing application ID. Run the QA APK/test APK on a dedicated device;
-rebuild without the flag to produce the normal app APK.
