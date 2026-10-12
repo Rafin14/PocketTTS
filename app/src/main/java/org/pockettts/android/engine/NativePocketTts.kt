@@ -25,7 +25,7 @@ internal class NativePocketTts(
             sentencePauseMs,
             maxTextTokens
         )
-        check(handle != 0L) { "Pocket-TTS-Modell konnte nicht geladen werden." }
+        check(handle != 0L) { "Could not load the Pocket TTS model." }
     }
 
     fun synthesize(text: String, voiceFile: String, sink: AudioSink): Boolean =

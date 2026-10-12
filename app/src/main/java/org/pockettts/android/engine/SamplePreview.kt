@@ -23,6 +23,9 @@ internal class SamplePreview(private val context: Context) : AutoCloseable {
     private var queuedSeek: Int? = null
     private var retainOnCompletion = false
     private var onError: () -> Unit = {}
+    private val feedback get() = (context as? MainActivity)?.haptics
+    private var failures = 0L
+    private var boundarySeek: Int? = null
     private val main = Handler(Looper.getMainLooper())
     private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
@@ -79,11 +82,13 @@ internal class SamplePreview(private val context: Context) : AutoCloseable {
                 val next = queuedSeek; queuedSeek = null
                 if (next != null) seekTo(next) else {
                     state = state.copy(positionMs = it.currentPosition)
+                    boundarySeek?.let { target -> if (kotlin.math.abs(state.positionMs - target) <= 100) feedback?.tick() }
+                    boundarySeek = null
                     if (playWhenReady) startPrepared()
                 }
             }
             audio.setOnCompletionListener {
-                if (player === it) {
+                if (player === it && playWhenReady && !seeking) {
                     if (!retainOnCompletion) close() else {
                         main.removeCallbacks(tick); playWhenReady = false
                         state = state.copy(playing = false, positionMs = state.durationMs)
@@ -102,27 +107,33 @@ internal class SamplePreview(private val context: Context) : AutoCloseable {
             if (state.positionMs >= state.durationMs) seekTo(0) else if (!seeking) startPrepared()
         } else {
             try {
+                val wasPlaying = state.playing
                 // A rapid second toggle can arrive before the initial seek/start completes.
                 if (state.playing) player?.pause()
                 state = state.copy(playing = false, positionMs = if (seeking) state.positionMs else player?.currentPosition ?: state.positionMs)
                 main.removeCallbacks(tick)
+                if (wasPlaying) feedback?.tick()
             } catch (_: IllegalStateException) { fail() }
         }
     }
     private fun startPrepared() {
         try {
+            val wasPlaying = state.playing
             player?.playbackParams = PlaybackParams().setSpeed(speed).setPitch(1f)
             player?.start()
             state = state.copy(playing = true)
             main.removeCallbacks(tick); main.post(tick)
+            if (!wasPlaying) feedback?.tick()
         } catch (_: Exception) { fail() }
     }
     fun changeSpeed(value: Float) {
+        val previous = speed
         speed = PlaybackSpeed.normalize(value)
         if (prepared && state.playing) {
             try { player?.playbackParams = PlaybackParams().setSpeed(speed).setPitch(1f) }
             catch (_: Exception) { fail() }
         }
+        feedback?.value(previous, speed, .05f, .5f, 2f)
     }
     fun seekTo(positionMs: Int) {
         if (!prepared) {
@@ -137,15 +148,38 @@ internal class SamplePreview(private val context: Context) : AutoCloseable {
             state = state.copy(positionMs = position)
         } catch (_: IllegalStateException) { fail() }
     }
+    fun seekBy(deltaMs: Int) = seekTo((state.positionMs.toLong() + deltaMs).coerceIn(0, state.durationMs.toLong()).toInt())
+    fun seekWithFeedback(positionMs: Int) {
+        val target = positionMs.coerceIn(0, state.durationMs)
+        boundarySeek = target.takeIf { prepared && state.positionMs != it && (it == 0 || it == state.durationMs) }
+        seekTo(positionMs)
+    }
+    fun stop() {
+        playWhenReady = false
+        if (prepared) {
+            try { if (state.playing) player?.pause() } catch (_: IllegalStateException) { fail(); return }
+        }
+        main.removeCallbacks(tick)
+        state = state.copy(playing = false)
+        if (player != null) seekTo(0)
+    }
     private fun fail() {
+        failures++
         val notify = onError
         close()
         notify()
+    }
+    fun stopFromControl(action: () -> Unit = ::close) {
+        val hadAudio = state.key != null
+        val errors = failures
+        action()
+        if (hadAudio && !state.playing && failures == errors) feedback?.tick()
     }
     override fun close() {
         main.removeCallbacks(tick)
         val old = player
         player = null; prepared = false; playWhenReady = false; seeking = false; queuedSeek = null
+        boundarySeek = null
         old?.release()
         focus?.let { context.getSystemService(AudioManager::class.java).abandonAudioFocusRequest(it) }
         focus = null; state = State(); onError = {}

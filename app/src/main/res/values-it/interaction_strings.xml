@@ -1,0 +1,7 @@
+<resources>
+    <string name="haptic_feedback">Feedback aptico</string>
+    <string name="haptic_feedback_hint">Feedback discreto per controlli e azioni completate. Rispetta le impostazioni di Android.</string>
+    <string name="nav_drag_preview">Rilascia per passare a %1$s</string>
+    <string name="nav_drag_cancel">Rilascia per annullare la navigazione</string>
+    <string name="nav_drag_hint">Tieni premuto e trascina verso un’altra scheda</string>
+</resources>

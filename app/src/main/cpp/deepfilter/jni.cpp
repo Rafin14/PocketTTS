@@ -29,8 +29,10 @@ Java_org_pockettts_android_engine_WavSamples_nativeDecode(JNIEnv* env, jobject, 
                 double sum = 0;
                 for (unsigned ch = 0; ch < wav.channels; ++ch) {
                     const float value = block[i * wav.channels + ch];
-                    if (!std::isfinite(value)) throw std::invalid_argument("Non-finite WAV samples");
-                    sum += std::clamp(value, -1.f, 1.f);
+                    if (!std::isfinite(value) || std::abs(value) > 1000000.f)
+                        throw std::invalid_argument("Non-finite or excessive WAV samples");
+                    // Float WAV headroom must survive channel cancellation and attenuation.
+                    sum += value;
                 }
                 mono[offset + i] = static_cast<float>(sum / wav.channels);
             }
@@ -70,7 +72,8 @@ Java_org_pockettts_android_engine_WavSamples_nativeInspect(JNIEnv* env, jobject,
                 float peak = 0;
                 for (unsigned ch = 0; ch < wav.channels; ++ch) {
                     const float value = block[i * wav.channels + ch];
-                    if (!std::isfinite(value)) throw std::invalid_argument("Non-finite WAV samples");
+                    if (!std::isfinite(value) || std::abs(value) > 1000000.f)
+                        throw std::invalid_argument("Non-finite or excessive WAV samples");
                     peak = std::max(peak, std::min(1.f, std::abs(value)));
                 }
                 const auto bin = 1 + (offset + i) * 512 / wav.totalPCMFrameCount;

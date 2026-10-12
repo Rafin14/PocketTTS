@@ -20,6 +20,11 @@ import java.nio.ByteOrder
 import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
+    internal var hapticsEnabled by mutableStateOf(true)
+        private set
+    internal val haptics by lazy { AppHaptics(this) { hapticsEnabled } }
+    private val readerHaptics = ReaderHapticObserver { haptics.tick() }
+    private var seekFeedback: Pair<Long, Long>? = null
     internal var appearance by mutableStateOf("system")
         private set
     internal var tab by mutableIntStateOf(0)
@@ -35,6 +40,8 @@ class MainActivity : ComponentActivity() {
         private set
     internal var parameters by mutableStateOf<List<String>>(emptyList())
     internal var speed by mutableFloatStateOf(1f)
+        private set
+    internal var readerGainDb by mutableFloatStateOf(0f)
         private set
     internal var snapshot by mutableStateOf(ReaderPlaybackService.Snapshot(ReaderPlaybackService.State.IDLE))
         private set
@@ -108,11 +115,22 @@ class MainActivity : ComponentActivity() {
     private var cursorToRestore = 0
     private var scrollToRestore = 0
     private val main = Handler(Looper.getMainLooper())
+    private val refreshWorker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var refreshRevision = 0L
     private val persistDraft = Runnable { saveDraft() }
     private var readerService: ReaderPlaybackService? = null
     private var readerBound = false
     private val readerListener = object : ReaderPlaybackService.Listener {
-        override fun onReaderStateChanged(value: ReaderPlaybackService.Snapshot) { snapshot = value }
+        override fun onReaderStateChanged(value: ReaderPlaybackService.Snapshot) {
+            snapshot = value
+            readerHaptics.update(value.state)
+            seekFeedback?.let { (target, deadline) ->
+                if (SystemClock.uptimeMillis() > deadline || value.state in listOf(ReaderPlaybackService.State.STOPPED, ReaderPlaybackService.State.ERROR)) seekFeedback = null
+                else if (value.state in listOf(ReaderPlaybackService.State.PLAYING, ReaderPlaybackService.State.PAUSED) && kotlin.math.abs(value.positionMs - target) <= 100) {
+                    seekFeedback = null; haptics.tick()
+                }
+            }
+        }
     }
     private val readerConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -128,6 +146,7 @@ class MainActivity : ComponentActivity() {
         appearance = prefs.getString(APPEARANCE, APPEARANCE_SYSTEM) ?: APPEARANCE_SYSTEM
         setTheme(themeFor(appearance))
         super.onCreate(state)
+        hapticsEnabled = prefs.getBoolean("haptic_feedback", true)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         preview = SamplePreview(this)
         if (intent?.action == TextToSpeech.Engine.ACTION_CHECK_TTS_DATA) {
@@ -150,7 +169,7 @@ class MainActivity : ComponentActivity() {
                     if (intent.action == ACTION_SELF_TEST) {
                         val value = runSelfTest()
                         Log.i(TAG, "SELF_TEST_OK file=${value.file} samples=${value.samples}")
-                        getString(R.string.self_test_success, value.samples, value.samples / SAMPLE_RATE)
+                        resources.getQuantityString(R.plurals.self_test_samples, value.samples.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), value.samples, value.samples / SAMPLE_RATE)
                     } else {
                         val value = runMultiVoiceSelfTest()
                         Log.i(TAG, "MULTI_VOICE_TEST_OK $value")
@@ -175,6 +194,7 @@ class MainActivity : ComponentActivity() {
         scrollToRestore = state?.getInt("editorScroll", 0) ?: 0
         speed = PlaybackSpeed.read(this)
         editor = EditText(this).apply {
+            isHapticFeedbackEnabled = hapticsEnabled
             hint = getString(R.string.reader_hint)
             contentDescription = getString(R.string.ui_document)
             gravity = android.view.Gravity.TOP or android.view.Gravity.START
@@ -237,6 +257,7 @@ class MainActivity : ComponentActivity() {
     }
     override fun onStart() {
         super.onStart()
+        readerHaptics.reset() // Rebinding must not vibrate for an already-playing session.
         if (normalUi && !readerBound) readerBound = bindService(Intent(this, ReaderPlaybackService::class.java), readerConnection, Context.BIND_AUTO_CREATE)
         else readerService?.addListener(readerListener)
     }
@@ -249,6 +270,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
     override fun onDestroy() {
+        refreshRevision++; refreshWorker.shutdown()
         transferCancelled.set(true)
         main.removeCallbacks(persistDraft)
         if (readerBound) { readerService?.removeListener(readerListener); unbindService(readerConnection) }
@@ -268,36 +290,73 @@ class MainActivity : ComponentActivity() {
         super.onSaveInstanceState(out)
     }
     internal fun switchTab(value: Int) { hideKeyboard(); preview.close(); tab = value }
+    internal fun setHaptics(value: Boolean) {
+        hapticsEnabled = value
+        editor.isHapticFeedbackEnabled = value
+        prefs.edit().putBoolean("haptic_feedback", value).apply()
+    }
     internal fun setAppearance(value: String) {
         setTheme(themeFor(value))
         appearance = value
         prefs.edit().putString(APPEARANCE, value).apply()
     }
     internal fun selectSpeed(value: Float) {
+        val previous = speed
         speed = PlaybackSpeed.normalize(value)
         PlaybackSpeed.save(this, speed)
         readerService?.setSpeed(speed)
         preview.changeSpeed(speed)
+        haptics.value(previous, speed, .05f, .5f, 2f)
+    }
+    internal fun selectReaderGain(value: Float, apply: Boolean = true) {
+        if (!value.isFinite()) return
+        val selected = selection ?: return
+        val key = ModelPackRepository.voiceName(selected.first, selected.second)
+        val previous = readerGainDb
+        readerGainDb = value.coerceIn(PcmGain.MIN_DB, PcmGain.MAX_DB)
+        ReaderGain.set(this, key, readerGainDb)
+        if (apply) readerService?.setVoiceGain(key, readerGainDb)
+        haptics.value(previous, readerGainDb, 1f, PcmGain.MIN_DB, PcmGain.MAX_DB)
     }
     internal fun selectVoice(pack: ModelPack, voice: PackVoice) {
         if (busy) return
+        val changed = selection?.first?.id != pack.id || selection?.second?.id != voice.id
         if (selection?.first?.id != pack.id || selection?.second?.id != voice.id) readerService?.stop()
         ModelPackRepository.selectPack(this, pack.id)
         ModelPackRepository.selectVoice(this, pack.id, voice.id)
-        refreshData()
+        val available = packs.firstOrNull { it.id == pack.id } ?: pack
+        val voices = if (available.voices.any { it.id == voice.id }) available.voices.map { if (it.id == voice.id) voice else it }
+            else available.voices + voice
+        applyUpdatedPack(available.copy(voices = voices))
+        if (changed && selection?.second?.id == voice.id && selection?.first?.id == pack.id) haptics.tick()
     }
     internal fun selectPack(pack: ModelPack) {
         if (currentPack?.id != pack.id) readerService?.stop()
-        ModelPackRepository.selectPack(this, pack.id); refreshData()
+        ModelPackRepository.selectPack(this, pack.id); applyUpdatedPack(pack)
     }
     private fun refreshData(message: String? = null, error: Boolean = false) {
-        packs = ModelPackRepository.list(this)
-        currentPack = ModelPackRepository.selectedPack(this)
-        selection = ModelPackRepository.resolveVoice(this, null)
+        if (isDestroyed) return
+        if (message != null) { notice = message; noticeError = error }
+        val revision = ++refreshRevision
+        refreshWorker.execute {
+            val result = runCatching { ModelPackRepository.snapshot(applicationContext) }
+            main.post { if (!isDestroyed && refreshRevision == revision) result.onSuccess(::applySnapshot)
+                .onFailure { notice = it.message.orEmpty(); noticeError = true } }
+        }
+    }
+    private fun applySnapshot(snapshot: ModelPackRepository.Snapshot) {
+        packs = snapshot.packs
+        currentPack = snapshot.current
+        selection = snapshot.selection
+        readerGainDb = selection?.let { ReaderGain.get(this, ModelPackRepository.voiceName(it.first, it.second)) } ?: 0f
         parameters = currentPack?.let { listOf(ModelPackRepository.temperature(this, it).toString(),
             ModelPackRepository.lsdSteps(this, it).toString(), ModelPackRepository.threads(this, it).toString(),
             ModelPackRepository.sentencePauseMs(this, it).toString(), ModelPackRepository.maxTextTokens(this, it).toString()) } ?: emptyList()
-        if (message != null) { notice = message; noticeError = error }
+    }
+    private fun applyUpdatedPack(pack: ModelPack) {
+        refreshRevision++
+        val updated = if (packs.any { it.id == pack.id }) packs.map { if (it.id == pack.id) pack else it } else packs + pack
+        applySnapshot(ModelPackRepository.snapshot(this, updated))
     }
     internal fun clearDocument() {
         if (!editing) return
@@ -316,9 +375,21 @@ class MainActivity : ComponentActivity() {
     }
     internal fun pauseReader() { readerService?.pause() }
     internal fun stopReader() { readerService?.stop() }
-    internal fun seekReader(position: Long) { readerService?.seekTo(position) }
-    internal fun nextReaderChunk() { readingHighlight.resetFollow(); readerService?.nextChunk() }
-    internal fun previousReaderChunk() { readingHighlight.resetFollow(); readerService?.previousChunk() }
+    internal fun seekReader(position: Long) {
+        seekFeedback = position.takeIf { snapshot.availableMs > 0 && snapshot.positionMs != it &&
+            (it == 0L || it == snapshot.availableMs) }?.let { it to SystemClock.uptimeMillis() + 3000 }
+        readerService?.seekTo(position)
+    }
+    internal fun nextReaderChunk() {
+        val previous = snapshot.chunk
+        readingHighlight.resetFollow(); readerService?.nextChunk()
+        if (snapshot.chunk != previous) haptics.tick()
+    }
+    internal fun previousReaderChunk() {
+        val previous = snapshot.chunk
+        readingHighlight.resetFollow(); readerService?.previousChunk()
+        if (snapshot.chunk != previous) haptics.tick()
+    }
     internal fun exportAudio() {
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE); type = "audio/wav"; putExtra(Intent.EXTRA_TITLE, "Pocket TTS.wav")
@@ -339,7 +410,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    internal fun stopPreview() { preview.close() }
+    internal fun stopPreview() { preview.stopFromControl() }
     internal fun exportVoices() {
         if (blocked()) return
         stopPreview()
@@ -372,13 +443,13 @@ class MainActivity : ComponentActivity() {
         thread(name = "pockettts-voice-transfer") {
             val result = runCatching { work { status -> main.post { if (!isDestroyed) transferNotice(status) } } }
             // Capture repository state off-thread; never scan imported collections on the UI thread.
-            val restored = runCatching { ModelPackRepository.list(context) }
+            val restored = runCatching { ModelPackRepository.snapshot(context) }
             main.post {
                 if (!isDestroyed) {
                     busy = false
-                    restored.onSuccess { packs = it; currentPack = it.firstOrNull { pack -> pack.id == currentPack?.id } }
-                    selection = ModelPackRepository.resolveVoice(context, null)
+                    refreshRevision++; restored.onSuccess(::applySnapshot)
                     transferNotice(result.getOrElse { "Voice transfer failed: ${it.message ?: "check the file and free storage"}. An export destination may contain a partial file." }, result.isFailure)
+                    if (result.isSuccess) haptics.confirm()
                 }
             }
         }
@@ -396,7 +467,7 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 if (!isDestroyed) {
                     busy = false
-                    if (result.isSuccess) { renameTarget = null; refreshData() }
+                    if (result.isSuccess) { renameTarget = null; applyUpdatedPack(result.getOrThrow()) }
                     else renameError = result.exceptionOrNull()?.message ?: "Could not rename voice."
                 }
             }
@@ -407,7 +478,7 @@ class MainActivity : ComponentActivity() {
         stopPreview(); detail = null; sheet = null
         recordingDialog?.close()
         recordingDialog = VoiceRecordingDialog(this, pack.id,
-            { readerService?.discardAudio(); refreshData(); tab = 1 }, { recordingDialog = null }, {}, editingVoice = voice)
+            { updated -> readerService?.discardAudio(); applyUpdatedPack(updated); tab = 1 }, { recordingDialog = null }, {}, editingVoice = voice)
     }
     internal fun restoreVoice(pack: ModelPack, voice: PackVoice) {
         if (blocked() || !voice.userCreated || !voice.audioEdited) return
@@ -416,7 +487,11 @@ class MainActivity : ComponentActivity() {
                 stopPreview(); detail = null; busy = true
                 thread(name = "pockettts-restore") {
                     val result = runCatching { ModelPackRepository.restoreVoice(applicationContext, pack.id, voice.id) }
-                    runOnUiThread { if (!isDestroyed) { busy = false; if (result.isSuccess) readerService?.discardAudio(); refreshData(if (result.isFailure) result.exceptionOrNull()?.message ?: "Restore failed." else "Original audio restored.", result.isFailure) } }
+                    runOnUiThread { if (!isDestroyed) {
+                        busy = false
+                        if (result.isSuccess) { readerService?.discardAudio(); applyUpdatedPack(result.getOrThrow()); notice = "Original audio restored."; noticeError = false }
+                        else { notice = result.exceptionOrNull()?.message ?: "Restore failed."; noticeError = true }
+                    } }
                 }
             }
         }
@@ -429,7 +504,12 @@ class MainActivity : ComponentActivity() {
                 preview.close(); detail = null; busy = true
                 thread(name = "pockettts-delete-voice") {
                     val result = runCatching { ModelPackRepository.deleteVoice(applicationContext, pack.id, voice.id) }
-                    runOnUiThread { busy = false; refreshData(if (result.isFailure) getString(R.string.voice_delete_failed) else null, result.isFailure) }
+                    val updated = runCatching { ModelPackRepository.snapshot(applicationContext) }
+                    runOnUiThread { if (!isDestroyed) {
+                        busy = false; refreshRevision++; updated.onSuccess(::applySnapshot)
+                        if (result.isFailure) { notice = getString(R.string.voice_delete_failed); noticeError = true }
+                        else haptics.confirm()
+                    } }
                 }
             }
         }
@@ -455,7 +535,7 @@ class MainActivity : ComponentActivity() {
         preview.close(); recordingDialog?.close(); videoDialog?.close(); sheet = null
         videoDialog = VideoImportDialog(this, uri, { file ->
             recordingDialog = VoiceRecordingDialog(this, packId,
-                { ModelPackRepository.selectPack(this, packId); refreshData(); tab = 1 },
+                { updated -> ModelPackRepository.selectPack(this, packId); applyUpdatedPack(updated); tab = 1 },
                 { recordingDialog = null }, {}, extracted = file)
         }, { videoDialog = null }, { packs.firstOrNull { it.id == packId }?.let(::pickVideo) })
     }
@@ -469,7 +549,7 @@ class MainActivity : ComponentActivity() {
         val packId = recordingPackId ?: return
         preview.close()
         recordingDialog = VoiceRecordingDialog(this, packId,
-            { ModelPackRepository.selectPack(this, packId); refreshData(); tab = 1 }, { recordingDialog = null },
+            { updated -> ModelPackRepository.selectPack(this, packId); applyUpdatedPack(updated); tab = 1 }, { recordingDialog = null },
             { requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQUEST_MIC) })
     }
     internal fun saveSettings() {
@@ -494,6 +574,7 @@ class MainActivity : ComponentActivity() {
     }
     internal fun showAbout() { sheet = "about" }
     internal fun setEditing(value: Boolean, focus: Boolean = true) {
+        val changed = editing != value
         if (value && !editing) readerService?.stop()
         val start = editor.selectionStart.coerceIn(0, editor.length())
         val end = editor.selectionEnd.coerceIn(0, editor.length())
@@ -512,6 +593,7 @@ class MainActivity : ComponentActivity() {
             editor.requestFocus()
             getSystemService(android.view.inputmethod.InputMethodManager::class.java).showSoftInput(editor, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
         }
+        if (changed && documentReady) haptics.tick()
     }
     private fun openDocument(requestCode: Int, mime: String) {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -540,7 +622,7 @@ class MainActivity : ComponentActivity() {
         preview.close()
         recordingDialog?.close()
         recordingDialog = VoiceRecordingDialog(this, packId,
-            { ModelPackRepository.selectPack(this, packId); refreshData(); tab = 1 },
+            { updated -> ModelPackRepository.selectPack(this, packId); applyUpdatedPack(updated); tab = 1 },
             { recordingDialog = null }, {}, imported = uri,
             chooseAnother = { packs.firstOrNull { it.id == packId }?.let { addVoice(it, false) } })
     }
@@ -551,9 +633,11 @@ class MainActivity : ComponentActivity() {
     }
     private fun loadDraft() {
         draftWorker.execute {
+            var initial: ModelPackRepository.Snapshot? = null
             val result = runCatching {
                 BundledPocketTts.ensure(this)
                 ModelPackRepository.applySystemDefaultSelection(this)
+                initial = ModelPackRepository.snapshot(this)
                 val file = File(filesDir, "reader-document.txt")
                 if (file.exists()) android.util.AtomicFile(file).openRead().bufferedReader().use { it.readText() }
                 else prefs.getString(READER_DOCUMENT, "").orEmpty()
@@ -561,7 +645,7 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 if (!isDestroyed) {
                     busy = false
-                    if (result.isSuccess) refreshData("") else {
+                    if (result.isSuccess) { applySnapshot(requireNotNull(initial)); notice = "" } else {
                         notice = getString(R.string.bundled_failed, result.exceptionOrNull()?.message.orEmpty()); noticeError = true
                     }
                     editor.setText(result.getOrDefault(""))
@@ -592,7 +676,9 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 if (!isDestroyed) {
-                    documentInfo = getString(R.string.reader_document_info, words, text.length)
+                    documentInfo = getString(R.string.reader_document_info,
+                        resources.getQuantityString(R.plurals.reader_words, words, words),
+                        resources.getQuantityString(R.plurals.reader_characters, text.length, text.length))
                     if (result.isFailure) toast(R.string.reader_draft_failed)
                 }
             }

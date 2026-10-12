@@ -31,8 +31,24 @@ set(SPM_PROTOBUF_PROVIDER "internal" CACHE STRING "" FORCE)
 set(SPM_ABSL_PROVIDER "internal" CACHE STRING "" FORCE)
 set(SPM_ENABLE_NFKC_COMPILE OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(sentencepiece GIT_REPOSITORY https://github.com/google/sentencepiece.git GIT_TAG v0.2.1 GIT_SHALLOW TRUE)
-FetchContent_Declare(dr_libs GIT_REPOSITORY https://github.com/mackron/dr_libs.git GIT_TAG 50bb723e6a459dbb781e26cefee4fd9ca6714d6a)
-FetchContent_MakeAvailable(sentencepiece dr_libs)
+FetchContent_Declare(dr_libs GIT_REPOSITORY https://github.com/mackron/dr_libs.git GIT_TAG 50bb723e6a459dbb781e26cefee4fd9ca6714d6a GIT_SUBMODULES "")
+# v0.2.1 appends an unquoted prefix-map flag to CMAKE_CXX_FLAGS. Patch the
+# pinned source during every fresh population, before its CMake file executes.
+FetchContent_GetProperties(sentencepiece)
+if(NOT sentencepiece_POPULATED)
+    FetchContent_Populate(sentencepiece)
+endif()
+set(SPM_CMAKE "${sentencepiece_SOURCE_DIR}/CMakeLists.txt")
+file(READ "${SPM_CMAKE}" SPM_CMAKE_CONTENT)
+set(SPM_ORIGINAL_CONTENT "${SPM_CMAKE_CONTENT}")
+string(REPLACE " -fmacro-prefix-map=\${CMAKE_SOURCE_DIR}/=''"
+    " \\\"-fmacro-prefix-map=\${CMAKE_SOURCE_DIR}/=''\\\""
+    SPM_CMAKE_CONTENT "${SPM_CMAKE_CONTENT}")
+if(NOT SPM_CMAKE_CONTENT STREQUAL SPM_ORIGINAL_CONTENT)
+    file(WRITE "${SPM_CMAKE}" "${SPM_CMAKE_CONTENT}")
+endif()
+add_subdirectory("${sentencepiece_SOURCE_DIR}" "${sentencepiece_BINARY_DIR}")
+FetchContent_MakeAvailable(dr_libs)
 target_compile_options(sentencepiece-static PRIVATE -w)
 # SentencePiece's command-line helper targets are built by its upstream CMake
 # file even though the app only uses the static library. On Android its

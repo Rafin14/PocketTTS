@@ -57,3 +57,11 @@ PocketTTS-Voices-*.zip
 # Never blanket-ignore ONNX, tokenizer, ZIP, audio, or test-video assets.
 # PocketTTS-english-FP32.zip and app/src/main/assets/deepfilter/ are required.
 # Store personal recordings outside this repository.
+.local/
+
+# Generated evidence, optional media-production workspaces and cleanup staging
+/design-evidence/
+/promo/
+/deletion/
+/cleanup/
+node_modules/

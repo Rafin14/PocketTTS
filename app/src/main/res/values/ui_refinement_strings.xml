@@ -1,0 +1,22 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <!-- English fallback until translations are reviewed. -->
+    <string name="ui_help_show">More info</string>
+    <string name="ui_selected_short">Selected</string>
+    <string name="ui_help_hide">Less info</string>
+    <string name="ui_speed_reset">Reset · 1.00×</string>
+    <string name="ui_add_summary">Use one speaker, with their permission.</string>
+    <string name="ui_record_summary">3–30 seconds of speech in a quiet room.</string>
+    <string name="ui_video_title">Extract from video</string>
+    <string name="ui_video_summary">Choose a video and trim its audio.</string>
+    <string name="ui_video_limits">On-device only · up to 30 min / 256 MB decoded audio</string>
+    <string name="ui_video_extract">Extract audio</string>
+    <string name="ui_video_extracting">Extracting audio…</string>
+    <string name="ui_backup_title">Voice backup</string>
+    <string name="ui_backup_warning">Back up before uninstalling. The ZIP contains private recordings and names; keep it safe.</string>
+    <string name="ui_backup_export">Export voices</string>
+    <string name="ui_backup_import">Import voices</string>
+    <string name="ui_backup_help">Nothing is uploaded by Pocket TTS. Save locally for an offline backup. Conflicting voices are imported as copies; existing voices are never overwritten.</string>
+    <string name="ui_reader_gain_summary">Saved for this voice’s reading audio only.</string>
+    <string name="ui_conditioning_summary">Cloning uses the first 30 seconds. Original preserved.</string>
+    <string name="ui_legacy_summary">Earlier edits unknown. Gain starts from the saved audio.</string>
+</resources>

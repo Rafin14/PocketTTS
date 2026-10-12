@@ -55,6 +55,7 @@ internal class DeepFilterNet3Denoiser(context: Context) : AutoCloseable {
         val before = waveform(input)
         val output = nativeProcess(handle, input)
         require(output.size == input.size && output.all { it.isFinite() })
+        PcmGain.apply(output, 1f) // Preserve dynamics instead of hard-clipping post-model peaks.
         try { PcmWav.Writer(enhanced).use { it.write(output) } }
         catch (error: Throwable) { enhanced.delete(); throw error }
         return before to waveform(output)

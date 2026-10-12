@@ -135,9 +135,9 @@ class VoiceWorkflowTest {
                     ui.onNodeWithTag("preview-before").performScrollTo().performClick()
                     ui.onNodeWithTag("sheet-content").performScrollToNode(hasTestTag("preview-after"))
                     ui.onNodeWithTag("preview-after").performScrollTo().performClick()
-                    ui.onNodeWithTag("sheet-content").performScrollToNode(hasTestTag("preview-stop"))
-                    ui.waitUntil(5000) { ui.onAllNodesWithTag("preview-stop").fetchSemanticsNodes().isNotEmpty() }
-                    ui.onNodeWithTag("preview-stop").performScrollTo().performClick()
+                    ui.onNodeWithTag("sheet-content").performScrollToNode(hasTestTag("after-stop"))
+                    ui.waitUntil(5000) { ui.onAllNodesWithTag("after-stop").fetchSemanticsNodes().isNotEmpty() }
+                    ui.onNodeWithTag("after-stop").performScrollTo().performClick()
                     ui.onNodeWithTag("sheet-content").performScrollToNode(hasTestTag("record-control"))
                 }
             }

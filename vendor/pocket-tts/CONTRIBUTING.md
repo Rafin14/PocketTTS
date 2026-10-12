@@ -32,16 +32,6 @@ You can run the CLI commands with:
 uv run pocket-tts generate
 ```
 
-## Coding agents
-We use `AGENTS.md` to manage the coding agents context. If your coding agent does
-not supports reading from this file directly, you can just
-use a symlink. The most common ones are already added in the `.gitignore` file.
-
-```bash
-ln -s AGENTS.md CLAUDE.md
-# or
-ln -s AGENTS.md QWEN.md
-```
 
 ## How does this model work?
 

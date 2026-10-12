@@ -1,152 +1,155 @@
-# Pocket TTS for Android
+# PocketTTS for Android
 
-Offline text-to-speech, a long-form Reader, and custom voices made from your own audio.
+**Offline speech. Your words. Your voices.**
 
-Pocket TTS brings Kyutai's Pocket TTS to Android using native ONNX inference. Read documents aloud, control playback from Android's media notification, and create a voice reference from a recording, WAV file, or video's audio—all on your device.
+PocketTTS is an Android text-to-speech app with a long-form Reader, custom voice creation and on-device audio editing. Listen to documents, make a voice from a recording or video, and keep your text and audio on your device.
 
-This is an unofficial community application, not an official Kyutai release.
+**Version 4.0 · Android 8.0+ · ARM64 · English FP32 model and Alba voice included**
 
-**Requirements:** Android 8.0 or newer, ARM64. The English FP32 model and Alba voice are bundled; no model download is required after installation.
+An unofficial community application powered by Kyutai Pocket TTS and PocketTTS.cpp, not an official Kyutai application.
 
 ## Demo
 
-![Pocket TTS Android app demo](docs/PocketTTS_demo.gif)
+![Folio app demo](docs/Folio_demo.gif)
+[Explore the app in screenshots](#screenshots).
 
 ## Features
 
 ### Read and listen
 
-- A spacious, scrollable Reader with read-only and editing modes.
-- Automatic text chunking, spoken-section highlighting, and scroll following. Highlighting follows speech sections, not individual word timings.
-- Compact controls for play, pause/resume, stop, previous/next chunk, waveform seeking, voice selection, and playback speed from **0.50× to 2.00×**.
-- Background playback with Android media-session and notification controls.
-- Export a completed reading as WAV audio.
-- Android system text-to-speech engine support for compatible apps.
+- A large, scrollable text editor with editing and distraction-free reading modes.
+- Long-form reading with automatic chunking, spoken-section highlighting and scroll following.
+- Play, pause, resume, stop, Previous/Next chunk navigation and waveform seeking.
+- Playback speed from **0.50× to 2.00×**, with an exact **1.00× reset**.
+- **Per-voice Reader amplification**, remembered independently for each voice.
+- Background playback with Android notification, lock-screen and media-session controls.
+- Export completed speech as a **WAV file**.
+- Use PocketTTS as an **Android system TTS engine** in compatible apps.
 
-### Create and manage voices
+### Create your voice library
 
-- Record with live microphone-amplitude feedback, import WAV audio, or **Extract from Video**.
-- Trim a reference using waveform handles, preview seeking, and 0.1-second adjustments.
-- Apply bundled **DeepFilterNet3** noise reduction and compare Before/After audio. You can keep the unenhanced sample.
-- Preview, select, rename, edit, and delete custom voices. Saved edits preserve the original reference for **Restore Original**.
-- Adjust reference volume from **50–200%**, with peak limiting to prevent clipping.
-- Export an accepted reference as WAV, or back up all custom voices in a portable ZIP.
+- Clone a voice from an authorized reference sample, without training a new model.
+- Record with a live microphone waveform and duration display.
+- Import WAV audio or **extract audio from a video**.
+- Select voices directly from the library, audition references and manage custom names.
+- Export individual references or create **portable ZIP backups** of your custom library.
 
-Voice cloning conditions the existing model on reference audio; it does not train a new model. Only use recordings you have permission to use.
+### Edit and enhance audio
 
-### Appearance
+- Trim with a waveform, selection handles and **0.1-second adjustments**.
+- Adjust reference gain and retain saved editing settings when reopening a voice.
+- **Loudness normalization** calibrated against the bundled reference, with peak protection.
+- Bundled **DeepFilterNet3** noise reduction with original/enhanced previews.
+- Choose either version before saving; preserve the source for **Restore Original**.
+- Edit, rename, restore, export or delete custom voices without replacing their identity.
 
-- Material 3 with restrained glass-style surfaces, rounded geometry, and muted periwinkle accents.
-- System, Light, Dark, and AMOLED modes.
-- Bottom sheets that resist short dismissal swipes, and grouped voice-action menus with subtle separators.
+### A focused Android experience
 
-## Install and get started
-
-Check [GitHub Releases](https://github.com/Rafin14/PocketTTS/releases) for APK availability and release-specific notes, or [build from source](docs/BUILDING.md).
-
-1. Install an ARM64 APK and open **Pocket TTS**.
-2. Allow the bundled model and Alba reference to prepare in local storage.
-3. Open **Reader → Edit**, type or paste text, and press **Play**.
-4. Open **Voices → Add voice** to record, import a WAV, or extract video audio.
-5. Use **Settings** to change appearance, generation settings, or export/import voice backups.
-
-For other apps, select Pocket TTS in Android's **Text-to-speech output** settings. The settings location varies by device.
-
-APK updates must use the same signing identity as the installed app. Before uninstalling or changing signing keys, [export your custom voices](docs/VOICE_BACKUP.md) and copy any Reader text you want to keep. Uninstalling removes app-private data.
+- Rounded Material 3 surfaces, clear typography and restrained glass-style layers.
+- **System, Light, Dark and AMOLED** appearance modes.
+- Floating navigation, safe heading swipes and deliberate hold-and-drag tab selection.
+- Optional, subtle haptic feedback that respects Android settings.
+- Inference, voice conditioning, enhancement and video extraction run locally.
 
 ## Screenshots
 
-App captures from an Android 16 ARM64 phone. The video example uses an attributed Alba reference and a generated test picture; no personal recordings are shown. These captures predate the compact-player and overflow-menu refinements, so current spacing and menu appearance may differ.
+Actual application captures. Audio examples use attributed reference or synthetic material; no private recordings are shown.
 
 <table>
 <tr>
-<td align="center"><img src="docs/screenshots/reader.png" width="230" alt="Reader with sample text"><br>Focused Reader</td>
-<td align="center"><img src="docs/screenshots/voices.png" width="230" alt="Voices and active selection"><br>Voice selection</td>
-<td align="center"><img src="docs/screenshots/add-voice.png" width="230" alt="Voice creation methods"><br>Record, import, or extract</td>
+<td align="center"><img src="docs/screenshots/reader.png" width="230" alt="PocketTTS Reader and playback controls"><br>Reader</td>
+<td align="center"><img src="docs/screenshots/voices.png" width="230" alt="Voice library and selected voice"><br>Voice library</td>
+<td align="center"><img src="docs/screenshots/add-voice.png" width="230" alt="Recording, WAV and video creation options"><br>Add a voice</td>
 </tr>
 <tr>
-<td align="center"><img src="docs/screenshots/video-extraction.png" width="230" alt="Local video preview and extraction"><br>Video-to-voice</td>
-<td align="center"><img src="docs/screenshots/audio-trimming.png" width="230" alt="Audio waveform and trimming"><br>Precise sample trimming</td>
-<td align="center"><img src="docs/screenshots/voice-enhancement.png" width="230" alt="Audio enhancement comparison"><br>Before/after enhancement</td>
+<td align="center"><img src="docs/screenshots/record-voice.png" width="230" alt="Voice recording interface"><br>Recording</td>
+<td align="center"><img src="docs/screenshots/video-extraction.png" width="230" alt="Video preview and audio extraction"><br>Extract from video</td>
+<td align="center"><img src="docs/screenshots/audio-trimming.png" width="230" alt="Waveform trimming workspace"><br>Trim audio</td>
 </tr>
 <tr>
-<td align="center"><img src="docs/screenshots/record-voice.png" width="230" alt="Ready to record a voice sample"><br>Voice recording</td>
-<td align="center"><img src="docs/screenshots/settings.png" width="230" alt="Appearance and engine settings"><br>Settings</td>
-<td align="center"><img src="docs/screenshots/about.png" width="230" alt="About Pocket TTS"><br>About</td>
+<td align="center"><img src="docs/screenshots/voice-enhancement.png" width="230" alt="Original and enhanced audio comparison"><br>Enhance audio</td>
+<td align="center"><img src="docs/screenshots/settings.png" width="230" alt="PocketTTS settings and voice backups"><br>Settings</td>
+<td align="center"><img src="docs/screenshots/about.png" width="230" alt="PocketTTS version and feature information"><br>About</td>
 </tr>
 </table>
 
-## Privacy and responsible use
+## Get started
 
-The app has **no INTERNET permission**. Speech generation, voice conditioning, noise reduction, and video-audio extraction run locally. Models are packaged with the app, and Android backup is disabled for app data.
+APK downloads are published through [GitHub Releases](https://github.com/Rafin14/PocketTTS/releases). You can also [build from source](docs/BUILDING.md).
 
-Android's document picker may expose cloud-backed providers that download or sync selected files independently. Exported files go to the destination you choose. Voice-backup ZIPs contain recordings and **are not encrypted**; store and share them carefully. Review diagnostic logs before sharing them.
+1. Install the ARM64 APK and open PocketTTS. First launch prepares the included model locally.
+2. Open **Reader → Edit**, paste or type text, choose a voice and press **Play**.
+3. Open **Voices → Add voice** to record, import a WAV or extract video audio.
+4. Trim and preview the sample, compare enhancement, name it and save.
+5. Use **Settings → Voice backup** to export or restore your custom library.
 
-Do not clone voices without permission or present generated speech as an authentic recording of someone else. Source-code, model, and recording licenses are separate; see the attribution links below.
+For other apps, select PocketTTS under Android's **Text-to-speech output** settings. The location varies by device.
 
-## Limits and compatibility
+Updates require the same application ID and signing identity as the installed app. Before uninstalling, changing builds or signing keys, export your voices and copy any Reader text you want to keep. Uninstalling removes app-private data.
 
-- English FP32 is bundled; the app does not offer downloadable language packs.
-- Native speech generation requires ARM64. x86 emulator translation is not supported for Pocket TTS inference.
-- Source audio: up to **30 minutes** and **256 MiB of decoded WAV data**. This is not a compressed-video file-size cap.
-- Microphone recordings and selected enhancement references: **3–30 seconds**.
-- Video support depends on Android's installed decoders. Protected, corrupt, unsupported, or non-seekable inputs may be rejected.
-- Noise reduction cannot reliably remove music, echo, or other speakers. Use clean, single-speaker references when possible.
-- Allow approximately **420 MiB** for extracted Pocket assets in addition to the APK, generated speech, recordings, and temporary files. Performance and voice quality vary by hardware and sample quality.
+## Offline and private
+
+The app has **no INTERNET permission**. PocketTTS and DeepFilterNet3 models are packaged with the app; no runtime model download is needed. Automatic Android backup is disabled for app data.
+
+Android's document picker may access cloud providers that download or sync files independently. Exported files go to the destination you choose. Voice-backup ZIPs contain recordings and are **not encrypted**.
+
+Only use voices and recordings you are authorized to use. Do not impersonate people without consent or present generated speech as an authentic recording.
+
+## Compatibility and limits
+
+- Android 8.0+ on **ARM64**. Native PocketTTS synthesis is not supported on x86 emulator translation.
+- The included model supports **English**; the app does not download additional language packs.
+- Microphone recordings and selected enhancement references use **3–30 seconds**.
+- Source WAVs and decoded video audio support up to **30 minutes** and **256 MiB**. Video limits concern decoded audio, not compressed file size.
+- WAV import supports mono/multichannel PCM and floating-point formats. Selected references become 24 kHz mono PCM16.
+- Video compatibility depends on Android codecs. Protected, corrupt or non-seekable sources may be rejected.
+- Noise reduction is not speaker separation and cannot reliably remove music, strong echo or overlapping speech.
+- Allow approximately **420 MiB** for extracted Pocket assets, in addition to the APK, voices, generated audio and temporary files. Speed and quality depend on the device and sample.
+- Highlighting follows speech chunks, not individual words. Generated speech is temporary until exported.
 
 ## Documentation
 
 | Guide | Topics |
 | --- | --- |
-| [Reader](docs/READER.md) | Editing, playback, chunk navigation, seeking, and WAV export |
-| [Voice management](docs/PLAYBACK_AND_VOICE_EDITING.md) | Selection, previews, saved-reference edits, and restoration |
-| [Trimming and speed](docs/TRIMMING_AND_SPEED.md) | Selection, volume, supported WAV formats, and playback rate |
-| [Extract from Video](docs/VIDEO_VOICES.md) | Video import, decoding, and reference creation |
-| [Noise reduction](docs/DEEPFILTER.md) | DeepFilterNet3 behavior, limitations, and provenance |
-| [Voice backup](docs/VOICE_BACKUP.md) | Exports, restoration, compatibility, and privacy |
-| [Appearance and Reader modes](docs/READER_MODES_AND_ABOUT.md) | Themes, scrolling behavior, and About |
-| [Audio limits and accessibility](docs/LIMITS_AND_UI_AUDIT.md) | Input limits, responsive layout, and accessibility |
-| [Building and testing](docs/BUILDING.md) | Command-line/Android Studio setup, device checks, and signing |
+| [Reader](docs/READER.md) | Documents, playback, chunks, amplification and WAV export |
+| [Voices](docs/PLAYBACK_AND_VOICE_EDITING.md) | Selection, previews, saved edits, restoration and export |
+| [Trimming and speed](docs/TRIMMING_AND_SPEED.md) | Waveforms, gain, normalization, audio formats and playback rate |
+| [Video extraction](docs/VIDEO_VOICES.md) | Video-to-reference workflow and codec limits |
+| [Noise reduction](docs/DEEPFILTER.md) | Processing, limitations and attribution |
+| [Voice backups](docs/VOICE_BACKUP.md) | Portable exports, restoration and privacy |
+| [Appearance and navigation](docs/READER_MODES_AND_ABOUT.md) | Themes, modes, gestures and haptics |
+| [Audio limits and accessibility](docs/AUDIO_LIMITS.md) | Supported input and accessible controls |
+| [Build guide](docs/BUILDING.md) | Android Studio, command-line setup and signing |
 
 ## Build from source
 
-Use JDK 17 or JBR 21, Android SDK Platform 35, NDK 27.2.12479018, and CMake 3.22.1. Git LFS is required for the model archive. Native dependency preparation needs Bash, curl, unzip, tar, and sha256sum. Initial dependency downloads require internet access; normal app operation does not.
+Install Git LFS, JDK 17 or 21, Android SDK Platform 35, NDK 27.2.12479018 and CMake 3.22.1. Native dependency preparation uses Bash, curl, unzip, tar and sha256sum.
 
 ```bash
-git lfs install
 git clone https://github.com/Rafin14/PocketTTS.git
 cd PocketTTS
+git lfs install
 git lfs pull
 bash scripts/prepare_android_native_deps.sh
 ./gradlew :app:assembleDebug
 ```
 
-On Windows, prepare native dependencies in an equipped Bash/WSL environment, then run `.\gradlew.bat :app:assembleDebug` from PowerShell at the repository root. Configure `JAVA_HOME` and your Android SDK as described in the [build guide](docs/BUILDING.md).
+On Windows, prepare native dependencies with Git Bash or WSL, then run `.\gradlew.bat :app:assembleDebug` in PowerShell. Android Studio users can open the repository root, sync Gradle and run the `app` module.
 
-Output: `app/build/outputs/apk/debug/app-debug.apk`. Android Studio is optional; to use it, open the repository root, sync Gradle, and run the `app` configuration on an ARM64 device.
+Output: `app/build/outputs/apk/debug/app-debug.apk`. Initial dependency downloads require internet access; the installed app operates offline. See the [build guide](docs/BUILDING.md) for SDK setup, debug identities and release signing.
 
-The required `PocketTTS-english-FP32.zip` is approximately **198 MiB** and uses Git LFS. DeepFilter's approximately 8.2 MiB ONNX asset is included normally. Keep the required models, tokenizer, voices, and notices when building or redistributing the app.
+The required `PocketTTS-english-FP32.zip` uses **Git LFS**. Keep this archive, the DeepFilter model, voices, tokenizer and license notices when building or distributing the app.
 
-## Development
+## Contributing
 
-The app uses Kotlin, Jetpack Compose, Material 3, and an embedded Android text editor. `ReaderPlaybackService` owns Reader audio and its media session; `SamplePreview` handles foreground sample/video previews. `ModelPackRepository` manages voice metadata and references. JNI connects PocketTTS.cpp and the DeepFilter DSP to ONNX Runtime.
-
-```bash
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
-python scripts/check_publishable.py
-```
-
-Use a dedicated [QA installation](docs/BUILDING.md#isolated-device-testing) for instrumentation. Tests may change settings and create/delete test voices. Emulator UI checks and generated-WAV fixtures do not establish native synthesis performance or speech quality; test those on ARM64 hardware.
-
-Contributions are welcome. See [Contributing](CONTRIBUTING.md) for pull-request guidance and [Security](SECURITY.md) for privacy or security reports.
+See [Contributing](CONTRIBUTING.md) for development guidance and [Security](SECURITY.md) for vulnerability reporting.
 
 ## Licenses and attribution
 
-Application code: [MIT](LICENSE). Vendored software retains its original notices.
+Application code is [MIT-licensed](LICENSE). Models, recordings and third-party software retain their own licenses.
 
-- Pocket TTS and PocketTTS.cpp code: MIT. Converted Pocket model and Alba voice have separate CC BY 4.0 attribution/use conditions; see [model license](MODEL_LICENSE.md) and [voice attribution](VOICE_ATTRIBUTION.md).
+- Pocket TTS/PocketTTS.cpp code: MIT. Model derivatives and Alba have separate attribution requirements; see [model licensing](MODEL_LICENSE.md) and [voice attribution](VOICE_ATTRIBUTION.md).
 - DeepFilterNet3 model: MIT; adapted speech-core DSP/resampler: Apache-2.0; KissFFT: BSD-3-Clause.
-- ONNX Runtime: MIT; SentencePiece, AndroidX/Compose and Kotlin: Apache-2.0; dr_libs offers public-domain/MIT-0 licensing.
-- Full notices, pinned provenance, modifications and bundled license texts: [Third-party notices](THIRD_PARTY_NOTICES.md), [packaged licenses](app/src/main/assets/licenses/), [DeepFilter notices](app/src/main/assets/deepfilter/NOTICES.txt).
+- ONNX Runtime: MIT; SentencePiece, AndroidX/Compose and Kotlin: Apache-2.0; dr_libs: public-domain/MIT-0 options.
 
-Upstream software, models and recordings retain their original copyright notices and licensing requirements.
+See [Third-party notices](THIRD_PARTY_NOTICES.md), [packaged licenses](app/src/main/assets/licenses/) and [DeepFilter notices](app/src/main/assets/deepfilter/NOTICES.txt).

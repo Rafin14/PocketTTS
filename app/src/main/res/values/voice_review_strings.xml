@@ -1,0 +1,11 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="review_gain_hint">Adjust both preview and saved audio after denoising. Originals are preserved; amplification is limited to prevent clipping.</string>
+    <string name="review_apply_gain">Apply adjustments</string>
+    <string name="review_processing">Rebuilding audio previews…</string>
+    <string name="review_processing_failed">Could not rebuild the previews. Your original is preserved. Retry the adjustments.</string>
+    <string name="review_pending">Apply adjustments before saving</string>
+    <string name="preview_loading">Loading preview…</string>
+    <string name="preview_playing">Playing</string>
+    <string name="preview_back_five">Seek backward 5 seconds</string>
+    <string name="preview_forward_five">Seek forward 5 seconds</string>
+</resources>

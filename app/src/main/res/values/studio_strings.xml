@@ -1,0 +1,16 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="studio_offline">ON DEVICE</string>
+    <string name="studio_voice">VOICE</string>
+    <plurals name="studio_library_count">
+        <item quantity="one">%1$d voice · one personal collection</item>
+        <item quantity="other">%1$d voices · one personal collection</item>
+    </plurals>
+    <string name="studio_builtin">BUILT IN</string>
+    <string name="studio_custom">PERSONAL</string>
+    <string name="studio_editor">READING SPACE</string>
+    <string name="studio_settings">MAKE IT YOURS</string>
+    <string name="studio_record_title">Your voice, captured</string>
+    <string name="studio_import_title">A sample, made personal</string>
+    <string name="studio_video_title">Find a voice in video</string>
+    <string name="studio_voice_details">Voice details</string>
+</resources>

@@ -9,5 +9,5 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories { google(); mavenCentral() }
 }
-rootProject.name = "PocketTtsAndroidEngine"
+rootProject.name = "PocketTTS"
 include(":app")

@@ -1,5 +1,10 @@
 # Pocket TTS
 
+> Vendored upstream Python/export reference. The Android application and its
+> supported English model are documented in the [main README](../../README.md).
+> Python CLI/server features and upstream language availability do not describe
+> the Android APK's capabilities.
+
 <img width="1446" height="622" alt="pocket-tts-logo-v2-transparent" src="https://github.com/user-attachments/assets/637b5ed6-831f-4023-9b4c-741be21ab238" />
 
 A lightweight text-to-speech (TTS) application designed to run efficiently on CPUs.

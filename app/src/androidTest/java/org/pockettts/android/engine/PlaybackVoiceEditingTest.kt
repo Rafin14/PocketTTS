@@ -18,7 +18,7 @@ class PlaybackVoiceEditingTest {
     private fun field(target: Any, name: String): Any? = target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
     private fun ready() = ui.waitUntil(30000) { ui.activity.documentReady && field(ui.activity, "readerService") != null }
     private fun capture(name: String) {
-        ui.waitForIdle()
+        ui.mainClock.advanceTimeBy(1000); ui.waitForIdle(); android.os.SystemClock.sleep(600); ui.waitForIdle()
         val folder = File(ui.activity.getExternalFilesDir(null), "playback-edit-qa").apply { mkdirs() }
         InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let { image ->
             File(folder, "$name.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }; image.recycle()
@@ -181,6 +181,8 @@ class PlaybackVoiceEditingTest {
             ui.waitUntil(15000) { ui.onAllNodesWithTag("preview-waveform").fetchSemanticsNodes().isNotEmpty() }
             ui.runOnIdle { app.preview.seekTo(1000); app.preview.toggle() }
             ui.runOnIdle { app.stopPreview(); app.restoreVoice(pack, voice) }
+            ui.runOnIdle { assertNotNull("Restore confirmation must actually be open", app.confirmation) }
+            capture("restore-confirmation")
             ui.onNodeWithText("Restore", useUnmergedTree = true).performClick()
             ui.waitUntil(15000) { !app.busy && app.selection?.second?.audioEdited == false }
             voice = current()

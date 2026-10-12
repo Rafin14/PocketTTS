@@ -34,9 +34,9 @@ The Android build fetches SentencePiece at tag `v0.2.1` and dr_libs at commit
 
 The current APK bundles English FP32 and the Alba reference only. The legacy
 export tools also describe other official voices; those are not current bundled
-languages. See `VOICE_ATTRIBUTION.md`. The test-only speech MP4 derives from Alba
-(AAC/stereo conversion plus a generated test pattern); other video fixtures are
-generated tones/silence. No user-imported recording belongs in the repository.
+languages. See `VOICE_ATTRIBUTION.md`. Example speech media derives from Alba
+(AAC/stereo conversion plus a generated video pattern); other example media
+contains generated tones/silence. These assets are not user recordings.
 
 Complete additional license texts are packaged under
 `app/src/main/assets/licenses/`: ONNX Runtime 1.20.0 and its upstream third-party
@@ -49,14 +49,6 @@ These files enter the APK as assets, not only the source repository.
 DeepFilter model revision: `63d8ba442ba900143c468b798e94a04009b2f0c9`.
 Adapted speech-core revision: `f0050757a7d7d24c60b17e60016989ecd07a491d`.
 See `docs/DEEPFILTER.md` for exact hashes and modifications.
-
-## Related application
-
-This engine was developed for use with [Layla](https://www.layla-network.ai/).
-Layla supports voices exposed by Android system TTS engines; its multilingual
-TTS setup is described in the
-[Layla guide](https://blog.layla-network.ai/post/how-to-add-multilingual-text-to-speech-for-your-characters-in-layla).
-Layla is not included in this repository and is not a dependency of the engine.
 
 The complete license texts and notices distributed by downloaded dependencies
 remain controlling for those components.

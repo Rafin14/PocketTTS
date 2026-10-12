@@ -24,6 +24,7 @@ class PocketThemeTest {
         assertEquals(Color.Black, pocketColors("amoled", false).background)
         assertEquals(pocketColors("dark", false), pocketColors("system", true))
         assertEquals(pocketColors("light", true), pocketColors("system", false))
+        assertTrue("Studio primary action contrast", contrast(Color.White, StudioTokens.Accent) >= 4.5)
     }
     private fun contrast(a: Color, b: Color): Float {
         val first = a.luminance(); val second = b.luminance()

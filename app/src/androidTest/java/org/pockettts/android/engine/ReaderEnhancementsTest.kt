@@ -65,7 +65,8 @@ class ReaderEnhancementsTest {
                 assertEquals(text + " edited", app.editor.text.toString())
                 listener.onReaderStateChanged(snapshot.copy(state = ReaderPlaybackService.State.STOPPED, rangeStart = -1, rangeEnd = -1))
             }
-            ui.onNodeWithTag("reader-waveform").assertExists()
+            // The track is a child of Material Slider's merged accessibility node.
+            ui.onNodeWithTag("reader-waveform", useUnmergedTree = true).assertExists()
         } finally { ui.runOnIdle { listener.onReaderStateChanged(ReaderPlaybackService.Snapshot(ReaderPlaybackService.State.IDLE)); app.editor.setText(original); service.addListener(listener) } }
     }
     @Test fun importedStereoWavEnhanceReviewAndSave() {
@@ -95,7 +96,11 @@ class ReaderEnhancementsTest {
             ui.waitUntil(15000) { app.recordingDialog == null && app.selection?.second?.displayName == name }
             val voice = app.selection!!.second
             assertArrayEquals(raw, source.readBytes())
-            assertArrayEquals(raw, ModelPackRepository.recordingSource(pack, voice, false)!!.readBytes())
+            // The before-preview reference is converted/trimmed; only originalSource
+            // promises the byte-for-byte imported file used by Restore Original.
+            assertArrayEquals(raw, ModelPackRepository.originalSource(pack, voice).readBytes())
+            assertEquals(72000, DeepFilterNet3Denoiser.readRecording(
+                ModelPackRepository.recordingSource(pack, voice, false)!!).size)
             val enhanced = ModelPackRepository.recordingSource(pack, voice, true)!!
             assertEquals(72000, DeepFilterNet3Denoiser.readRecording(enhanced).size)
             assertArrayEquals(enhanced.readBytes(), File(pack.voicesDir, voice.fileName).readBytes())
@@ -149,7 +154,13 @@ class ReaderEnhancementsTest {
                 ui.onNodeWithTag("document").performTouchInput { click(center) }
                 ui.waitUntil(10000) { androidx.core.view.ViewCompat.getRootWindowInsets(app.editor)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true }
                 screenshot("ime-open-$it")
-                automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+                // Native cursor/selection handles can consume the first Back before the IME.
+                repeat(2) {
+                    if (androidx.core.view.ViewCompat.getRootWindowInsets(app.editor)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true) {
+                        automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+                        android.os.SystemClock.sleep(500)
+                    }
+                }
                 ui.waitUntil(10000) { androidx.core.view.ViewCompat.getRootWindowInsets(app.editor)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == false }
                 ui.waitForIdle(); android.os.SystemClock.sleep(500)
                 ui.runOnIdle { assertEquals(height, app.editor.height) }

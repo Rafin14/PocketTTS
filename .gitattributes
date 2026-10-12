@@ -4,6 +4,7 @@ gradlew text eol=lf
 *.bat text eol=crlf
 *.png binary
 *.jpg binary
+*.gif binary
 *.mp4 binary
 *.wav binary
 *.onnx binary

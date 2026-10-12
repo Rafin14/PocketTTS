@@ -1,0 +1,47 @@
+<!-- New audio controls use English fallback until their translations are reviewed. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="audio_gain_value">Reference gain · %1$s</string>
+    <string name="audio_gain_help">Absolute adjustment from the preserved source. Saved WAVs already include it; Android media volume is separate.</string>
+    <string name="audio_gain_legacy">Earlier gain history is unknown. This edit uses the current saved audio as its preserved baseline; 0 dB adds no gain. Restore Original is separate.</string>
+    <string name="audio_gain_description">Voice reference gain in decibels</string>
+    <string name="audio_gain_reset">Reset to 0 dB</string>
+    <string name="audio_normalize">Normalize Volume</string>
+    <string name="audio_gain_applied">Reference gain applied · %1$s</string>
+    <string name="audio_gain_limited">Limited by headroom or safe adjustment range</string>
+    <string name="audio_gain_selection_required">Gain and normalization require a 3–30-second selection. Select a region, or reset gain to keep the full source unchanged.</string>
+    <string name="audio_normalize_failed">Could not normalize this sample.</string>
+    <string name="audio_normalize_silent">Audio is silent or too quiet to normalize safely. Choose a clearer sample; noise will not be amplified without limits.</string>
+    <string name="audio_normalized">Target %1$.1f LUFS · source %2$.1f LUFS. Boost is bounded; normalization cannot distinguish speech from background noise.</string>
+    <string name="audio_normalized_final">Enhanced output %1$.1f LUFS · target %2$.1f LUFS</string>
+    <string name="audio_normalized_saved">Saved normalization target · %1$.1f LUFS</string>
+    <string name="audio_conditioning_help">Cloning uses only the first 30 seconds of the saved reference. Select the intended speaker here; your full original remains recoverable.</string>
+    <string name="reader_gain">Reader voice gain</string>
+    <string name="reader_gain_help">Adjust this voice’s generated speech only, not its cloning reference or Android media volume. Changes preserve playback position but may briefly reprepare audio. Exported WAVs remain at original speed and gain.</string>
+    <string name="reader_gain_description">Adjust Reader gain for selected voice</string>
+    <string name="reader_gain_limited">Playback gain is capped per chunk to prevent clipping.</string>
+    <string name="reader_gain_effective">Current chunk applied gain · %1$s</string>
+    <string name="audio_edit_title">Edit audio · %1$s</string>
+    <string name="audio_video_review">Review extracted audio</string>
+    <string name="audio_save_changes">Save changes</string>
+    <string name="audio_edit_help">Trim, adjust or enhance the reference sample. Reset changes only gain; Restore Original in voice actions restores the original source.</string>
+    <string name="voice_rename_title">Rename voice</string>
+    <string name="voice_rename_action">Rename</string>
+    <string name="voice_actions_description">Voice actions</string>
+    <string name="voice_edit_action">Edit audio</string>
+    <string name="voice_restore_action">Restore Original</string>
+    <string name="voice_save_wav_action">Save .wav to device</string>
+    <string name="voice_name_length_error">Enter a name between 1 and 80 characters.</string>
+    <string name="voice_name_duplicate_error">A voice with that name already exists.</string>
+    <plurals name="reader_words">
+        <item quantity="one">%d word</item>
+        <item quantity="other">%d words</item>
+    </plurals>
+    <plurals name="reader_characters">
+        <item quantity="one">%d character</item>
+        <item quantity="other">%d characters</item>
+    </plurals>
+    <plurals name="self_test_samples">
+        <item quantity="one">Self-test successful: %1$d sample (%2$d s)</item>
+        <item quantity="other">Self-test successful: %1$d samples (%2$d s)</item>
+    </plurals>
+</resources>

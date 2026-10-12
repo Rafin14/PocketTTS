@@ -125,8 +125,9 @@ class ThemeSmokeTest {
                 val updated = ModelPackRepository.importRecording(app, pack.id, "$prefix $i", reference)
                 added += updated.voices.last().id
             }
-            ui.runOnIdle { app.selectPack(pack); app.switchTab(1) }
-            ui.onNodeWithTag("voices-list").performScrollToIndex(30)
+            val populated = requireNotNull(ModelPackRepository.find(app, pack.id))
+            ui.runOnIdle { app.selectPack(populated); app.switchTab(1) }
+            ui.onNodeWithTag("voices-list").performScrollToNode(hasText("$prefix 30"))
             capture("long-voice-list")
             ui.onNodeWithText("$prefix 30").assertExists()
             ui.onNodeWithTag("voices-list").performScrollToIndex(0)

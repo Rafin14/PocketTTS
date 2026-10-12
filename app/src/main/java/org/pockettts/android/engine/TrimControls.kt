@@ -18,8 +18,19 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import org.pockettts.android.engine.StudioTonalButton as FilledTonalButton
+import org.pockettts.android.engine.StudioOutlinedButton as OutlinedButton
+import org.pockettts.android.engine.StudioRangeSlider as RangeSlider
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
 
 private fun trimTime(ms: Int) = "%02d:%02d.%02d".format(java.util.Locale.ROOT, ms / 60000, ms / 1000 % 60, ms / 10 % 100)
 
@@ -39,7 +50,9 @@ internal fun TrimControls(info: WavSamples.Info, start: Int, end: Int, change: (
     val playheadColor = MaterialTheme.colorScheme.onSurface
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.trim_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Box(Modifier.fillMaxWidth().height(112.dp)) {
+        Box(Modifier.fillMaxWidth().height(126.dp).clip(RoundedCornerShape(18.dp))
+            .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.surfaceContainerLow)))
+            .border(.75.dp, LocalGlass.current.border, RoundedCornerShape(18.dp)).padding(10.dp)) {
             Canvas(Modifier.fillMaxSize().padding(horizontal = 10.dp)
                 .semantics {
                     contentDescription = waveLabel
@@ -69,7 +82,7 @@ internal fun TrimControls(info: WavSamples.Info, start: Int, end: Int, change: (
                     val x = (index + .5f) * step
                     val height = (sqrt(peak) * size.height * .85f).coerceAtLeast(1.dp.toPx())
                     drawLine(if (x in left..right) accent else muted, Offset(x, (size.height - height) / 2),
-                        Offset(x, (size.height + height) / 2), (step * .7f).coerceAtLeast(1f))
+                        Offset(x, (size.height + height) / 2), (step * .7f).coerceAtLeast(1f), StrokeCap.Round)
                 }
                 for (x in listOf(left, right)) drawLine(accent, Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
                 val x = playhead.toFloat() / duration * size.width
@@ -82,37 +95,43 @@ internal fun TrimControls(info: WavSamples.Info, start: Int, end: Int, change: (
             else change(start, value.endInclusive.roundToInt().coerceAtLeast(start + 3000))
         }, valueRange = 0f..duration.toFloat(), enabled = enabled && duration >= 3000,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("trim-range"))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.trim_start, trimTime(start)), style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TrimStep("−0.1s", "Start 0.1 seconds earlier", enabled && start > 0, Modifier.weight(1f)) { change((start - 100).coerceAtLeast(0), end) }
-                    TrimStep("+0.1s", "Start 0.1 seconds later", enabled && selected > 3000, Modifier.weight(1f)) { change((start + 100).coerceAtMost(end - 3000), end) }
+        val stacked = LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale > 1.3f
+        @Composable fun Endpoint(startPoint: Boolean, modifier: Modifier) {
+            Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (startPoint) {
+                    Text(stringResource(R.string.trim_start, trimTime(start)), style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TrimStep("−0.1s", "Start 0.1 seconds earlier", enabled && start > 0, Modifier.weight(1f)) { change((start - 100).coerceAtLeast(0), end) }
+                        TrimStep("+0.1s", "Start 0.1 seconds later", enabled && selected > 3000, Modifier.weight(1f)) { change((start + 100).coerceAtMost(end - 3000), end) }
+                    }
+                } else {
+                    Text(stringResource(R.string.trim_end, trimTime(end)), style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TrimStep("−0.1s", "End 0.1 seconds earlier", enabled && selected > 3000, Modifier.weight(1f)) { change(start, (end - 100).coerceAtLeast(start + 3000)) }
+                        TrimStep("+0.1s", "End 0.1 seconds later", enabled && end < duration, Modifier.weight(1f)) { change(start, (end + 100).coerceAtMost(duration)) }
+                    }
                 }
             }
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.trim_end, trimTime(end)), style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TrimStep("−0.1s", "End 0.1 seconds earlier", enabled && selected > 3000, Modifier.weight(1f)) { change(start, (end - 100).coerceAtLeast(start + 3000)) }
-                    TrimStep("+0.1s", "End 0.1 seconds later", enabled && end < duration, Modifier.weight(1f)) { change(start, (end + 100).coerceAtMost(duration)) }
-                }
-            }
+        }
+        if (stacked) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Endpoint(true, Modifier.fillMaxWidth()); Endpoint(false, Modifier.fillMaxWidth())
+        } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Endpoint(true, Modifier.weight(1f)); Endpoint(false, Modifier.weight(1f))
         }
         Text(stringResource(R.string.trim_selected, trimTime(selected)), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.trim_position, trimTime(playhead)), style = MaterialTheme.typography.labelLarge)
         if (!valid) Text(stringResource(R.string.trim_limits), color = MaterialTheme.colorScheme.error)
-        OutlinedButton(onClick = preview, enabled = enabled && valid, modifier = Modifier.fillMaxWidth().testTag("trim-preview")) {
-            Text(stringResource(if (state.playing) R.string.reader_pause else R.string.trim_preview))
-        }
-        if (state.key != null) PreviewControls(player)
+        SampleTransport(player, enabled && valid, position = (playhead - start).coerceIn(0, selected), duration = selected,
+            prefix = "trim", playTag = "trim-preview", start = preview, seek = { seek(start + it) },
+            stop = { seek(start); player.stop() })
     }
 }
 
 @Composable
 private fun TrimStep(label: String, description: String, enabled: Boolean, modifier: Modifier, action: () -> Unit) {
     FilledTonalButton(onClick = action, enabled = enabled, shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, LocalGlass.current.border), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-        modifier = modifier.heightIn(min = 48.dp).semantics { contentDescription = description }) {
-        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        border = BorderStroke(1.dp, LocalGlass.current.border), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+        modifier = modifier.semantics { contentDescription = description }) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
     }
 }

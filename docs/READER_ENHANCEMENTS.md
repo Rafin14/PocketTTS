@@ -36,14 +36,3 @@ text and transport controls reachable. Small windows retain a scrollable fallbac
 Starting playback snapshots the current editable text. Player/session ownership
 guards prevent stale preparation, seek or completion callbacks from changing a
 replacement session.
-
-## Contributor checks
-
-`ReaderVisualDataTest` checks text ranges and bounded peak collection.
-`ReaderEnhancementsTest` and `ReaderModesTest` check highlighting, editing,
-scrolling, recreation and keyboard layout. `PlaybackVoiceEditingTest` also
-exercises real generation and pending-chunk transport on ARM64.
-
-Deterministic layout snapshots and generated WAV fixtures are useful regression
-checks, but do not establish subjective speech quality. Use ARM64 hardware for
-native generation. See [test commands](BUILDING.md#device-checks).

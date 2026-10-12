@@ -28,7 +28,10 @@
     <string name="invalid_parameters">Bitte gültige Werte innerhalb der angegebenen Bereiche eingeben.</string>
     <string name="status_saved">Gespeichert: %1$s. Die TTS-Engine lädt das Modell beim nächsten Text neu.</string>
     <string name="self_test_running">Pocket-TTS-Selbsttest läuft…</string>
-    <string name="self_test_success">Selbsttest erfolgreich: %1$d Samples (%2$d s)</string>
+    <plurals name="self_test_samples">
+        <item quantity="one">Selbsttest erfolgreich: %1$d Sample (%2$d s)</item>
+        <item quantity="other">Selbsttest erfolgreich: %1$d Samples (%2$d s)</item>
+    </plurals>
     <string name="self_test_failed">Selbsttest fehlgeschlagen: %1$s</string>
     <string name="error_no_model_voice">Kein Sprachpaket mit Stimme installiert</string>
     <string name="error_native_synthesis">Native Synthese meldete einen Fehler</string>

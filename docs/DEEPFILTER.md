@@ -70,14 +70,8 @@ KissFFT is BSD-3-Clause. Original notices are retained in the source tree and
 bundled beside the graph in `NOTICES.txt`.
 See [third-party notices](../THIRD_PARTY_NOTICES.md).
 
-## Testing and limitations
-
-`DeepFilterTest` exercises real bundled-model inference, repeated processing,
-release/reopen, output shape/finiteness and original preservation.
-`VoiceWorkflowTest` and `PlaybackVoiceEditingTest` exercise review, saving and
-editing through the UI. Run device tests using [Building and testing](BUILDING.md).
+## Limitations
 
 Noise reduction cannot reliably remove music, reverberation or another speaker.
-Compare real noisy speech and cloning quality on ARM64 hardware. Automated audio
-shape and lifecycle checks do not establish perceptual quality or thermal
-performance for every device and recording.
+Results depend on sample quality and device performance. Compare the two audio
+versions and choose the reference that sounds clearest for the intended voice.

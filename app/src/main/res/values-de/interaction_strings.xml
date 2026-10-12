@@ -1,0 +1,7 @@
+<resources>
+    <string name="haptic_feedback">Haptisches Feedback</string>
+    <string name="haptic_feedback_hint">Dezentes Feedback für Bedienelemente und abgeschlossene Aktionen. Beachtet die Android-Einstellungen.</string>
+    <string name="nav_drag_preview">Loslassen, um zu %1$s zu wechseln</string>
+    <string name="nav_drag_cancel">Loslassen, um die Navigation abzubrechen</string>
+    <string name="nav_drag_hint">Gedrückt halten und zu einem anderen Tab schieben</string>
+</resources>

@@ -39,17 +39,5 @@ Closing or backgrounding an unsaved flow cancels work and releases owned
 resources. Temporary files are removed; saved original/derived sources remain
 available with the voice.
 
-## Contributor tests
-
-`VideoImportTest` covers decoding, waveform data, missing/corrupt/short inputs,
-picker cancellation, preview seeking, cleanup, real enhancement and saved voice
-selection. Native generation tests require ARM64 hardware.
-
-Test-only MP4 fixtures live in `app/src/androidTest/assets/video`, not the
-application APK. The speech fixture uses an attributed Alba excerpt; other
-fixtures contain generated patterns, tones or silence. Desktop FFmpeg is used
-only to generate fixtures.
-
-See [test commands](BUILDING.md),
-[source limits](LIMITS_AND_UI_AUDIT.md) and
+See [source limits](AUDIO_LIMITS.md) and
 [voice attribution](../VOICE_ATTRIBUTION.md).

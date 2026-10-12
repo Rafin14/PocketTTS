@@ -1,0 +1,7 @@
+<resources>
+    <!-- Native window/editor chrome bridge to PocketTheme's Compose palette. -->
+    <color name="studio_canvas_light">#F0F3FB</color>
+    <color name="studio_canvas_dark">#0B0E19</color>
+    <color name="studio_accent_light">#4056C7</color>
+    <color name="studio_accent_dark">#B4C4FF</color>
+</resources>

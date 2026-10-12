@@ -11,6 +11,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.pockettts.android.engine.StudioOutlinedButton as OutlinedButton
 
 @Composable
 internal fun AboutSheet(dismiss: () -> Unit) {
@@ -24,9 +25,12 @@ internal fun AboutSheet(dismiss: () -> Unit) {
     }
     GlassSheet(stringResource(R.string.about_title), dismiss) {
         item {
+            Column(verticalArrangement = Arrangement.spacedBy(StudioTokens.ControlGap)) {
+            StudioEmblem()
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
             Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), color = MaterialTheme.colorScheme.primary)
-            Text(stringResource(R.string.about_intro), modifier = Modifier.padding(top = 12.dp))
+            Text(stringResource(R.string.about_intro))
+            }
         }
         item {
             GlassCard(Modifier.fillMaxWidth().testTag("about-reader")) {
@@ -45,11 +49,13 @@ internal fun AboutSheet(dismiss: () -> Unit) {
             Text(stringResource(R.string.about_privacy_body), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
+            Column(verticalArrangement = Arrangement.spacedBy(StudioTokens.ControlGap)) {
             SectionTitle(stringResource(R.string.about_credits_title))
             Text(stringResource(R.string.about_credits_body), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedButton(onClick = { showNotices = !showNotices }, modifier = Modifier.testTag("about-notices")) {
                 Text(stringResource(R.string.about_notices))
+            }
             }
         }
         if (showNotices) item {

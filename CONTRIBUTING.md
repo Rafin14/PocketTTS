@@ -1,24 +1,33 @@
 # Contributing
 
-Fork the repository, create a focused branch, and submit a pull request with a
-summary, test results and screenshots for visible UI changes. Discuss major
-architecture/model changes first.
+Contributions are welcome. Open an issue for substantial behavior, architecture or model changes, and keep pull requests focused.
 
-- Preserve Android system TTS, offline operation, voice data and lifecycle safety.
-- Run `./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`.
-- Run relevant instrumentation tests, and test synthesis on a physical ARM64
-  device when changing native inference or voice conditioning. Report skips honestly.
-- Run `python scripts/check_publishable.py` before submitting changes.
-- Keep the required bundled model archive in Git LFS. Do not exclude required
-  runtime assets; model changes must include provenance and license review.
-- Never submit private recordings, tokens, signing keys, local SDK paths or
-  diagnostic logs containing private text.
-- Preserve notices and document every new third-party component.
-- Keep user guides aligned with visible controls. Describe features and limitations
-  without private workstation paths, chat transcripts, or unverified test claims.
+## Development checks
 
-See [Building and testing](docs/BUILDING.md) for setup and isolated device tests,
-and the [publishing checklist](docs/PUBLISHING_CHECKLIST.md) for source review.
+Follow the [build guide](docs/BUILDING.md), then run:
 
-Contributions to original app code use the repository's MIT license.
-Third-party sources/models/voices retain their own licenses and attribution.
+```bash
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+python scripts/check_publishable.py
+```
+
+For instrumentation, use a dedicated emulator/device installation:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest -PisolatedDeviceTest=true
+```
+
+Instrumentation uses disposable voices and may change application or device settings. Do not run it against a personal voice library. Native PocketTTS synthesis requires physical ARM64 hardware; x86 UI/media checks cannot establish native generation or audible quality.
+
+## Pull requests
+
+Describe the change, how it was checked, and any device-specific limitations. Include screenshots for visible UI changes.
+
+- Preserve offline operation, Android system TTS, voice data and lifecycle safety.
+- Retain functional regression tests and required models, tokenizer, voices and notices.
+- Keep model archives in Git LFS and document their provenance.
+- Keep public guides aligned with actual controls and supported features.
+- Do not submit private audio/text, credentials, signing keys, local SDK paths, generated build outputs or personal diagnostic logs.
+- Preserve third-party copyright and license notices.
+
+Original application contributions use the repository's MIT license. Third-party code, models and recordings retain their separate licenses. Report vulnerabilities through the [security policy](SECURITY.md).

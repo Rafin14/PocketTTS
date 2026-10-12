@@ -30,6 +30,9 @@ Pause retains the highlight without moving the text. Stop clears it.
 - **Stop:** stop audio and cancel remaining generation.
 - **Seek:** move within audio already generated, using the slider or waveform.
 - **Speed:** choose 0.50×–2.00× without changing exported audio.
+- **Voice amplification:** adjust generated listening audio for the selected voice;
+  each voice remembers its own setting. This is separate from reference gain and
+  Android system/media volume. Peak protection may reduce effective gain.
 
 A pending chunk buffers until its audio is ready. Paused navigation stays paused.
 Already generated chunks are reused rather than synthesized again. The chunk

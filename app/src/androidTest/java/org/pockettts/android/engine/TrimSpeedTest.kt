@@ -93,7 +93,7 @@ class TrimSpeedTest {
             val preview = field(dialog, "preview") as SamplePreview
             ui.waitUntil(15000) { preview.state.playing }
             ui.runOnIdle { assertEquals(4000, preview.state.durationMs) }
-            val trimmed = field(dialog, "trimmed") as File
+            val trimmed = field(dialog, "rawTrim") as File
             assertTrue(DeepFilterNet3Denoiser.readRecording(trimmed).all { it in .09f.. .11f })
             ui.waitUntil(10000) { !preview.state.playing && preview.state.positionMs == preview.state.durationMs }
             ui.onNodeWithTag("trim-preview").performClick()

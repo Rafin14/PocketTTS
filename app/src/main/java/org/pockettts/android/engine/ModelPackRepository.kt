@@ -22,7 +22,8 @@ internal data class PackVoice(
     val displayName: String,
     val fileName: String,
     val userCreated: Boolean = false,
-    val audioEdited: Boolean = false
+    val audioEdited: Boolean = false,
+    val edit: VoiceEdit? = null
 )
 
 internal data class ModelPack(
@@ -43,6 +44,14 @@ internal data class ModelPack(
 }
 
 internal object ModelPackRepository {
+    data class Snapshot(val packs: List<ModelPack>, val current: ModelPack?, val selection: Pair<ModelPack, PackVoice>?)
+    fun snapshot(context: Context, packs: List<ModelPack> = list(context)): Snapshot {
+        val selected = prefs(context).getString("selected_pack", null)
+        val current = packs.firstOrNull { it.id == selected } ?: packs.firstOrNull { it.id == BundledPocketTts.ID }
+        val resolved = current ?: preferredSystemPack(packs)
+        val voice = resolved?.let { pack -> pack.voices.firstOrNull { it.id == selectedVoiceId(context, pack) } }
+        return Snapshot(packs, current, if (resolved != null && voice != null) resolved to voice else null)
+    }
     private const val FORMAT_VERSION = 1
     private const val PREFS = "pockettts_pack_settings"
     private const val SYSTEM_DEFAULT_V1 = "selection.system_default.v1"
@@ -50,12 +59,12 @@ internal object ModelPackRepository {
 
     fun packsRoot(context: Context): File = File(context.filesDir, "model-packs").apply { mkdirs() }
 
-    fun migrateLegacy(context: Context) {
+    fun migrateLegacy(context: Context) = synchronized(ManifestStorage.lock) {
         val legacy = File(context.filesDir, "pockettts")
-        if (!File(legacy, "models/flow_lm_main.onnx").isFile) return
+        if (!File(legacy, "models/flow_lm_main.onnx").isFile) return@synchronized
         val target = File(packsRoot(context), "german-fp32")
-        if (File(target, "manifest.json").isFile) return
-        if (!target.exists() && !legacy.renameTo(target)) return
+        if (ManifestStorage.exists(File(target, "manifest.json"))) return@synchronized
+        if (!target.exists() && !legacy.renameTo(target)) return@synchronized
         writeManifest(
             ModelPack(
                 id = "german-fp32",
@@ -71,12 +80,13 @@ internal object ModelPackRepository {
         )
     }
 
-    fun list(context: Context): List<ModelPack> {
+    fun list(context: Context): List<ModelPack> = synchronized(ManifestStorage.lock) {
         BundledPocketTts.ensure(context)
         migrateLegacy(context)
-        return packsRoot(context).listFiles().orEmpty()
+        packsRoot(context).listFiles().orEmpty()
             .filter { it.isDirectory && !it.name.startsWith(".") }
-            .mapNotNull { runCatching { readManifest(it) }.getOrNull() }
+            .mapNotNull { root -> runCatching { readManifest(root) }
+                .onFailure { android.util.Log.e("PocketTTS", "Cannot read model-pack manifest: ${root.name}", it) }.getOrNull() }
             .filter(::isValid)
             .sortedBy { it.displayName.lowercase(Locale.ROOT) }
     }
@@ -153,16 +163,20 @@ internal object ModelPackRepository {
     }
 
     fun importRecording(context: Context, packId: String, name: String, file: File,
-                        original: File? = null, enhanced: File? = null, trimmed: File? = null): ModelPack = PocketEngine.updateModels {
+                        original: File? = null, enhanced: File? = null, trimmed: File? = null,
+                        edit: VoiceEdit? = null, cancelled: () -> Boolean = { false }): ModelPack = PocketEngine.updateModels {
+        check(!cancelled()) { "Saving cancelled" }
+        require(edit == null || original != null) { "Audio edit metadata requires a preserved source" }
         listOfNotNull(file, original, enhanced, trimmed).forEach {
             require(it.canonicalFile.parentFile == context.cacheDir.canonicalFile)
             require(PcmWav.isVoiceSample(it))
         }
-        file.inputStream().use { addVoice(context, packId, name, it, original, enhanced, trimmed) }
+        file.inputStream().use { addVoice(context, packId, name, it, original, enhanced, trimmed, edit, cancelled) }
     }
 
     private fun addVoice(context: Context, packId: String, name: String, input: InputStream,
-                         original: File? = null, enhanced: File? = null, trimmed: File? = null): ModelPack {
+                         original: File? = null, enhanced: File? = null, trimmed: File? = null,
+                         edit: VoiceEdit? = null, cancelled: () -> Boolean = { false }): ModelPack {
             val pack = find(context, packId) ?: error(context.getString(R.string.status_no_model))
             val displayName = name.trim().take(80).ifBlank { context.getString(R.string.new_voice) }
             val idBase = displayName.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]+"), "-").trim('-')
@@ -175,21 +189,24 @@ internal object ModelPackRepository {
             val archive = recordingArchive(pack, id)
             if (original != null) check(!archive.exists()) { "Recording archive already exists" }
             try {
-                copyVoiceLimited(input, target, context.getString(R.string.error_voice_too_large))
+                copyVoiceLimited(input, target, context.getString(R.string.error_voice_too_large), cancelled)
                 require(PcmWav.isVoiceSample(target)) { context.getString(R.string.error_invalid_wav) }
                 if (original != null) {
                     check(archive.mkdirs())
-                    original.copyTo(File(archive, "original.wav"))
-                    enhanced?.copyTo(File(archive, "enhanced.wav"))
-                    trimmed?.copyTo(File(archive, "trimmed.wav"))
+                    copyAudio(original, File(archive, "original.wav"), cancelled)
+                    enhanced?.let { copyAudio(it, File(archive, "enhanced.wav"), cancelled) }
+                    trimmed?.let { copyAudio(it, File(archive, "trimmed.wav"), cancelled) }
                 }
             } catch (error: Throwable) {
                 target.delete()
                 if (original != null) archive.deleteRecursively()
                 throw error
             }
-            val updated = pack.copy(voices = pack.voices + PackVoice(id, displayName, targetName, true, enhanced != null || trimmed != null))
-            try { writeManifest(updated) } catch (error: Throwable) {
+            val updated = pack.copy(voices = pack.voices + PackVoice(id, displayName, targetName, true, enhanced != null || trimmed != null, edit))
+            try {
+                check(!cancelled()) { "Saving cancelled" }
+                writeManifest(updated)
+            } catch (error: Throwable) {
                 target.delete(); if (original != null) archive.deleteRecursively(); throw error
             }
             selectVoice(context, pack.id, id)
@@ -205,6 +222,12 @@ internal object ModelPackRepository {
     fun originalSource(pack: ModelPack, voice: PackVoice): File =
         File(recordingArchive(pack, voice.id), "original.wav").takeIf { it.isFile } ?: File(pack.voicesDir, voice.fileName)
 
+    fun editingSource(pack: ModelPack, voice: PackVoice): File = when (voice.edit?.source) {
+        "original" -> originalSource(pack, voice)
+        "edit-base" -> File(recordingArchive(pack, voice.id), "edit-base.wav").also { check(it.isFile) { "Audio editing source is missing" } }
+        else -> File(pack.voicesDir, voice.fileName) // Legacy gain history is unknown.
+    }
+
     fun recordingSource(pack: ModelPack, voice: PackVoice, enhanced: Boolean): File? {
         val version = File(recordingArchive(pack, voice.id), voice.fileName.removeSuffix(".wav"))
         if (version.isDirectory) return File(version, if (enhanced) "enhanced.wav" else "before.wav").takeIf { it.isFile }
@@ -217,15 +240,16 @@ internal object ModelPackRepository {
         val voice = pack.voices.first { it.id == voiceId }
         require(voice.userCreated)
         val label = name.trim()
-        require(label.isNotEmpty() && label.length <= 80) { "Enter a name between 1 and 80 characters." }
-        require(pack.voices.none { it.id != voiceId && it.displayName.equals(label, true) }) { "A voice with that name already exists." }
+        require(label.isNotEmpty() && label.length <= 80) { context.getString(R.string.voice_name_length_error) }
+        require(pack.voices.none { it.id != voiceId && it.displayName.equals(label, true) }) { context.getString(R.string.voice_name_duplicate_error) }
         pack.copy(voices = pack.voices.map { if (it.id == voiceId) it.copy(displayName = label) else it }).also { writeManifest(it) }
     }
 
     /** New reference + version files first; AtomicFile manifest commits the pointer last. */
     fun updateVoiceAudio(context: Context, packId: String, voiceId: String, sample: File,
                          before: File? = null, enhanced: File? = null, restore: Boolean = false,
-                         cancelled: () -> Boolean = { false }): ModelPack = PocketEngine.updateModels {
+                         cancelled: () -> Boolean = { false }, edit: VoiceEdit? = null,
+                         editBase: File? = null): ModelPack = PocketEngine.updateModels {
         val pack = requireNotNull(find(context, packId))
         val voice = pack.voices.first { it.id == voiceId }
         require(voice.userCreated)
@@ -242,15 +266,22 @@ internal object ModelPackRepository {
         }
         val target = File(pack.voicesDir, "reference-${UUID.randomUUID()}.wav")
         val version = File(archive, target.nameWithoutExtension)
+        val base = File(archive, "edit-base.wav")
+        var createdBase = false
         var committed = false
         try {
-            sample.copyTo(target)
+            if (edit?.source == "edit-base" && voice.edit == null) {
+                check(!base.exists()) { "An unknown editing base already exists" }
+                createdBase = true
+                copyAudio(requireNotNull(editBase), base, cancelled)
+            }
+            copyAudio(sample, target, cancelled)
             check(version.mkdirs())
-            (before ?: sample).copyTo(File(version, "before.wav"))
-            enhanced?.copyTo(File(version, "enhanced.wav"))
+            copyAudio(before ?: sample, File(version, "before.wav"), cancelled)
+            enhanced?.let { copyAudio(it, File(version, "enhanced.wav"), cancelled) }
             check(!cancelled()) { "Editing cancelled" }
             val updated = pack.copy(voices = pack.voices.map {
-                if (it.id == voiceId) it.copy(fileName = target.name, audioEdited = !restore) else it
+                if (it.id == voiceId) it.copy(fileName = target.name, audioEdited = !restore, edit = if (restore) null else edit) else it
             })
             writeManifest(updated)
             committed = true
@@ -258,9 +289,10 @@ internal object ModelPackRepository {
             old.delete()
             archive.listFiles()?.filter { it.isDirectory && it != version }?.forEach { it.deleteRecursively() }
             listOf("trimmed.wav", "enhanced.wav").forEach { File(archive, it).delete() }
+            if (restore || edit == null) base.delete()
             updated
         } catch (error: Throwable) {
-            if (!committed) { target.delete(); version.deleteRecursively() }
+            if (!committed) { target.delete(); version.deleteRecursively(); if (createdBase) base.delete() }
             throw error
         }
     }
@@ -278,7 +310,11 @@ internal object ModelPackRepository {
             val pack = requireNotNull(packs[voice.packId]) { "Install the matching model before restoring its voices." }
             require(pack.languageTag == voice.language && pack.precision == voice.precision) { "Voice backup model is incompatible." }
         }
-        val originals = voices.map { it.packId }.distinct().associateWith { packs.getValue(it).manifestFile.readBytes() }
+        val originals = voices.map { it.packId }.distinct().associateWith {
+            val manifest = packs.getValue(it).manifestFile
+            ManifestStorage.readForWrite(manifest)
+            manifest.readBytes() // Preserve exact rollback bytes after recovery, under the storage lock.
+        }
         val created = mutableListOf<File>()
         var copies = 0
         try {
@@ -299,10 +335,11 @@ internal object ModelPackRepository {
                     val archive = recordingArchive(pack, id)
                     check(!archive.exists()); created += archive; check(archive.mkdirs())
                     entry.audio.getValue("original").copyTo(File(archive, "original.wav"))
+                    entry.audio["edit-base"]?.copyTo(File(archive, "edit-base.wav"))
                     val version = File(archive, reference.nameWithoutExtension).apply { check(mkdirs()) }
                     (entry.audio["before"] ?: entry.audio.getValue("current")).copyTo(File(version, "before.wav"))
                     entry.audio["enhanced"]?.copyTo(File(version, "enhanced.wav"))
-                    current += PackVoice(id, name, reference.name, true, entry.edited)
+                    current += PackVoice(id, name, reference.name, true, entry.edited, entry.edit)
                     provenance[id] = entry.sourceId
                 }
                 check(!cancelled()) { "Import cancelled" }
@@ -334,6 +371,7 @@ internal object ModelPackRepository {
         check(file.renameTo(trash))
         val updated = pack.copy(voices = pack.voices.filterNot { it.id == voiceId })
         try { writeManifest(updated) } catch (error: Throwable) { trash.renameTo(file); throw error }
+        ReaderGain.remove(context, voiceName(pack, voice))
         if (prefs(context).getString("voice.$packId", null) == voiceId) {
             prefs(context).edit().remove("voice.$packId").apply()
         }
@@ -402,8 +440,12 @@ internal object ModelPackRepository {
     }
 
     private fun readManifest(root: File): ModelPack {
-        val json = JSONObject(File(root, "manifest.json").readText())
-        require(json.optInt("format", 0) == FORMAT_VERSION) { "Nicht unterstütztes Paketformat" }
+        val json = ManifestStorage.read(File(root, "manifest.json"))
+        return parseManifest(root, json)
+    }
+
+    internal fun parseManifest(root: File, json: JSONObject): ModelPack {
+        require(json.optInt("format", 0) == FORMAT_VERSION) { "Unsupported model-pack format" }
         val voiceArray = json.optJSONArray("voices") ?: JSONArray()
         val voices = (0 until voiceArray.length()).map { index ->
             val item = voiceArray.getJSONObject(index)
@@ -411,7 +453,8 @@ internal object ModelPackRepository {
             require(fileName.isNotBlank() && fileName != "." && fileName != ".." && '/' !in fileName && '\\' !in fileName)
             val archive = File(root, "voices/.recordings/${item.getString("id")}")
             PackVoice(item.getString("id"), item.getString("name"), fileName, item.optBoolean("userCreated", false),
-                item.optBoolean("audioEdited", File(archive, "enhanced.wav").isFile || File(archive, "trimmed.wav").isFile))
+                item.optBoolean("audioEdited", File(archive, "enhanced.wav").isFile || File(archive, "trimmed.wav").isFile),
+                VoiceEdit.read(item.optJSONObject("edit")))
         }
         return ModelPack(
             id = sanitizeId(json.getString("id")),
@@ -428,12 +471,13 @@ internal object ModelPackRepository {
 
     private fun writeManifest(pack: ModelPack, backupOrigins: Map<String, String> = emptyMap()) {
         pack.root.mkdirs()
-        val previous = if (pack.manifestFile.isFile) JSONObject(pack.manifestFile.readText()) else JSONObject()
+        val previous = if (ManifestStorage.exists(pack.manifestFile)) ManifestStorage.readForWrite(pack.manifestFile) else JSONObject()
         val oldVoices = previous.optJSONArray("voices") ?: JSONArray()
         val voices = JSONArray().apply {
             pack.voices.forEach { voice ->
                 val metadata = (0 until oldVoices.length()).map { oldVoices.getJSONObject(it) }.firstOrNull { it.optString("id") == voice.id } ?: JSONObject()
                 backupOrigins[voice.id]?.let { metadata.put("backupSourceId", it) }
+                if (voice.edit == null) metadata.remove("edit") else metadata.put("edit", voice.edit.json())
                 put(metadata.put("id", voice.id).put("name", voice.displayName).put("file", voice.fileName).put("userCreated", voice.userCreated).put("audioEdited", voice.audioEdited))
             }
         }
@@ -475,11 +519,15 @@ internal object ModelPackRepository {
     }
 
 
-    private fun copyVoiceLimited(input: InputStream, target: File, limitError: String) {
+    private fun copyAudio(source: File, target: File, cancelled: () -> Boolean) =
+        source.inputStream().use { copyVoiceLimited(it, target, PcmWav.SIZE_ERROR, cancelled) }
+
+    private fun copyVoiceLimited(input: InputStream, target: File, limitError: String, cancelled: () -> Boolean = { false }) {
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         var copiedBytes = 0L
         FileOutputStream(target).use { output ->
             while (true) {
+                check(!cancelled()) { "Saving cancelled" }
                 val read = input.read(buffer)
                 if (read < 0) break
                 copiedBytes += read
@@ -527,7 +575,7 @@ internal object ModelPackRepository {
 
     private fun sanitizeId(raw: String): String {
         val id = raw.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9._-]+"), "-").trim('-')
-        require(id.isNotBlank() && !id.startsWith('.') && id == raw) { "Ungültige Paket-ID" }
+        require(id.isNotBlank() && !id.startsWith('.') && id == raw) { "Invalid model-pack ID" }
         return id
     }
 

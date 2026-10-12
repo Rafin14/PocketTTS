@@ -10,8 +10,8 @@ internal object BundledPocketTts {
     const val ID = "english-fp32"
     @Volatile private var ready = false
 
-    @Synchronized fun ensure(context: Context) {
-        if (ready) return
+    fun ensure(context: Context) = synchronized(ManifestStorage.lock) {
+        if (ready) return@synchronized
         val root = File(ModelPackRepository.packsRoot(context), ID).apply { mkdirs() }
         val index = context.assets.open("pockettts/files.tsv").bufferedReader().use { it.readText() }
         val marker = File(root, ".bundled-files")
@@ -20,7 +20,10 @@ internal object BundledPocketTts {
             val (path, length, hash) = line.split('\t')
             val target = File(root, path)
             // The installed manifest owns custom voices. Never replace it during app updates.
-            if (path == "manifest.json" && target.isFile) return@forEach
+            if (path == "manifest.json" && ManifestStorage.exists(target)) {
+                ManifestStorage.read(target) // Recover before deciding whether to bootstrap.
+                return@forEach
+            }
             if (target.isFile && target.length() == length.toLong() &&
                 (previouslyVerified || target.inputStream().use { digest(it) } == hash)) return@forEach
             target.parentFile?.mkdirs()

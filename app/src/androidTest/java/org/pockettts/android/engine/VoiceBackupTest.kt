@@ -57,8 +57,8 @@ class VoiceBackupTest {
             val exported = VoiceBackup.export(app, archive)
             val entries = unzip(archive.toByteArray())
             val manifest = JSONObject(entries.getValue("manifest.json").toString(Charsets.UTF_8))
-            assertEquals(1, manifest.getInt("version")); assertEquals(exported.voices, manifest.getJSONArray("voices").length())
-            assertTrue(entries.keys.all { it == "manifest.json" || it.matches(Regex("voices/\\d+/(current|original|before|enhanced)\\.wav")) })
+            assertEquals(2, manifest.getInt("version")); assertEquals(exported.voices, manifest.getJSONArray("voices").length())
+            assertTrue(entries.keys.all { it == "manifest.json" || it.matches(Regex("voices/\\d+/(current|original|before|enhanced|edit-base)\\.wav")) })
             val wav = ByteArrayOutputStream(); VoiceBackup.exportWav(app, pack.id, a.id, wav)
             assertArrayEquals(accepted, wav.toByteArray())
             val conflict = VoiceBackup.import(app, ByteArrayInputStream(archive.toByteArray()))
@@ -74,6 +74,20 @@ class VoiceBackupTest {
             val repeated = ByteArrayOutputStream(); VoiceBackup.export(app, repeated)
             val repeatedVoices = JSONObject(unzip(repeated.toByteArray()).getValue("manifest.json").toString(Charsets.UTF_8)).getJSONArray("voices")
             assertEquals(a.id, (0 until repeatedVoices.length()).map { repeatedVoices.getJSONObject(it) }.first { it.getString("id") == imported.id }.getString("sourceId"))
+            // Version 1 has rendered audio but no recoverable editing recipe/base.
+            val legacy = JSONObject(entries.getValue("manifest.json").toString(Charsets.UTF_8)).put("version", 1)
+            val legacyVoices = legacy.getJSONArray("voices")
+            repeat(legacyVoices.length()) { index ->
+                legacyVoices.getJSONObject(index).remove("edit")
+                legacyVoices.getJSONObject(index).getJSONObject("audio").remove("edit-base")
+            }
+            val legacyIds = now.voices.map { it.id }.toSet()
+            val legacyArchive = entries.filterKeys { !it.endsWith("/edit-base.wav") } +
+                ("manifest.json" to legacy.toString().toByteArray())
+            assertEquals(exported.voices, VoiceBackup.import(app, ByteArrayInputStream(zip(legacyArchive))).voices)
+            val legacyCopy = ModelPackRepository.find(app, pack.id)!!.voices.first { it.id !in legacyIds && it.displayName.startsWith(a.displayName) }
+            assertNull(legacyCopy.edit)
+            assertArrayEquals(accepted, File(pack.voicesDir, legacyCopy.fileName).readBytes())
             ModelPackRepository.deleteVoice(app, pack.id, a.id); ModelPackRepository.deleteVoice(app, pack.id, b.id)
             VoiceBackup.import(app, ByteArrayInputStream(archive.toByteArray()))
             now = ModelPackRepository.find(app, pack.id)!!
@@ -84,6 +98,8 @@ class VoiceBackupTest {
             ui.onNodeWithTag("preview-waveform").assertExists()
             ui.runOnIdle { app.stopPreview(); app.editVoice(now, restored) }
             ui.waitUntil(30000) { app.recordingDialog?.phase == VoiceRecordingDialog.Phase.TRIMMING }
+            ui.runOnIdle { app.recordingDialog!!.applyTrim(false) }
+            ui.waitUntil(120000) { app.recordingDialog?.phase == VoiceRecordingDialog.Phase.STOPPED }
             ui.runOnIdle { app.recordingDialog!!.close() }
             val reset = ModelPackRepository.restoreVoice(app, pack.id, a.id).voices.first { it.id == a.id }
             val resetWav = ByteArrayOutputStream(); VoiceBackup.exportWav(app, pack.id, reset.id, resetWav)
@@ -141,13 +157,15 @@ class VoiceBackupTest {
         try {
             ui.runOnIdle { app.editVoice(pack, voice) }
             ui.waitUntil(30000) { app.recordingDialog?.phase == VoiceRecordingDialog.Phase.TRIMMING }
+            ui.runOnIdle { app.recordingDialog!!.applyTrim(false) }
+            ui.waitUntil(120000) { app.recordingDialog?.phase == VoiceRecordingDialog.Phase.STOPPED }
             for (theme in listOf("light", "dark", "amoled")) {
                 ui.runOnIdle { app.setAppearance(theme) }
                 ui.onNodeWithTag("sheet-content").performScrollToNode(hasTestTag("edit-volume"))
                 ui.onNodeWithTag("edit-volume").assertIsDisplayed()
                 capture("volume-$theme")
             }
-            ui.runOnIdle { app.recordingDialog!!.changeVolume(2f); app.recordingDialog!!.applyTrim(false) }
+            ui.runOnIdle { app.recordingDialog!!.changeVolume(2f); app.recordingDialog!!.renderReview() }
             ui.waitUntil(120000) { app.recordingDialog?.phase == VoiceRecordingDialog.Phase.STOPPED }
             val dialog = app.recordingDialog!!
             val amplified = field(dialog, "trimmed") as File
@@ -232,6 +250,7 @@ class VoiceBackupTest {
             assertTrue(editor!!.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, android.os.Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, name)
             }))
+            capture(if (name.endsWith(".wav")) "picker-wav-export" else "picker-backup-export")
             click("Save")
             ui.waitUntil(30000) { !app.busy && if (name.endsWith(".wav")) app.notice == "Voice WAV saved." else app.notice.startsWith("Exported") }
         }
@@ -241,7 +260,7 @@ class VoiceBackupTest {
             assertEquals("pockettts-voices", JSONObject(unzip(zipBytes).getValue("manifest.json").toString(Charsets.UTF_8)).getString("format"))
             ui.runOnIdle { app.exportVoiceWav(pack, voice) }; save(wavName)
             assertArrayEquals(File(pack.voicesDir, voice.fileName).readBytes(), shell("cat /sdcard/Download/$wavName"))
-            ui.runOnIdle { app.importVoices() }; picker(); click(zipName)
+            ui.runOnIdle { app.importVoices() }; picker(); capture("picker-backup-import"); click(zipName)
             ui.waitUntil(30000) { !app.busy && app.notice.startsWith("Imported") }
             assertTrue(app.notice.contains("conflicts"))
             assertTrue(ModelPackRepository.find(app, pack.id)!!.voices.any { it.id != voice.id && it.displayName.startsWith(voice.displayName) })

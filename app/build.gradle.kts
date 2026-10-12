@@ -53,8 +53,8 @@ android {
         applicationId = "org.pockettts.android.engine"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "0.5.2"
+        versionCode = 23
+        versionName = "4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
@@ -84,8 +84,12 @@ android {
     }
     buildTypes {
         getByName("debug") {
+            applicationIdSuffix = ".apple"
             // Device QA can coexist with an installed APK signed by another key.
-            if (providers.gradleProperty("isolatedDeviceTest").orNull == "true") applicationIdSuffix = ".qa"
+            if (providers.gradleProperty("isolatedDeviceTest").orNull == "true") {
+                applicationIdSuffix = ".apple.qa"
+                isPseudoLocalesEnabled = true
+            }
         }
         getByName("release") {
             if (hasReleaseSigning) {

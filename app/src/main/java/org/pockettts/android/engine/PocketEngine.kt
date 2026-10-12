@@ -41,6 +41,6 @@ internal object PocketEngine {
         release?.cancel(false)
         revision++
         engine?.close(); engine = null; key = null
-        return block()
+        return synchronized(ManifestStorage.lock) { block() }
     }
 }

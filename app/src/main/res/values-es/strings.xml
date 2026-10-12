@@ -28,7 +28,10 @@
     <string name="invalid_parameters">Introduce valores válidos dentro de los intervalos indicados.</string>
     <string name="status_saved">Guardado: %1$s. El motor TTS volverá a cargar el modelo con el siguiente texto.</string>
     <string name="self_test_running">Ejecutando la prueba automática de Pocket TTS…</string>
-    <string name="self_test_success">Prueba correcta: %1$d muestras (%2$d s)</string>
+    <plurals name="self_test_samples">
+        <item quantity="one">Prueba correcta: %1$d muestra (%2$d s)</item>
+        <item quantity="other">Prueba correcta: %1$d muestras (%2$d s)</item>
+    </plurals>
     <string name="self_test_failed">Error en la prueba: %1$s</string>
     <string name="error_no_model_voice">No hay ningún paquete de idioma con voz instalado</string>
     <string name="error_native_synthesis">La síntesis nativa ha indicado un error</string>

@@ -2,7 +2,7 @@
 
 The Android app bundles English FP32 and the Alba reference voice. Optional
 legacy export tooling does not imply multilingual support in the distributed APK.
-The test-only `speech-test.mp4` is an eight-second Alba excerpt encoded as stereo
+The example `speech-test.mp4` is an eight-second Alba excerpt encoded as stereo
 AAC with a generated video pattern; it demonstrates video import and audio editing.
 
 The release model packs bundle only the official default reference voices

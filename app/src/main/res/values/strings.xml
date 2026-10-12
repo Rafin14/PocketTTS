@@ -15,11 +15,11 @@
     <string name="voice_add" tools:ignore="MissingTranslation">+ Add voice</string>
     <string name="voice_name" tools:ignore="MissingTranslation">Voice name</string>
     <string name="voice_name_required" tools:ignore="MissingTranslation">Enter a name</string>
-    <string name="voice_record" tools:ignore="MissingTranslation">Record / re-record</string>
+    <string name="voice_record" tools:ignore="MissingTranslation">Record sample</string>
     <string name="voice_record_title" tools:ignore="MissingTranslation">Record a voice sample</string>
     <string name="voice_record_help" tools:ignore="MissingTranslation">Record 3–30 seconds of clear speech in a quiet room. Only use voices with the speaker’s permission. Leaving this screen discards the unsaved recording.</string>
     <string name="voice_recording" tools:ignore="MissingTranslation">Recording… Tap Stop when finished (30-second maximum).</string>
-    <string name="voice_record_ready" tools:ignore="MissingTranslation">Ready. Preview the sample, enter a name, then save.</string>
+    <string name="voice_record_ready" tools:ignore="MissingTranslation">Ready to save</string>
     <string name="voice_record_failed" tools:ignore="MissingTranslation">Recording failed or was shorter than 3 seconds. Check microphone access and try again.</string>
     <string name="voice_save_failed" tools:ignore="MissingTranslation">Could not save the voice. Check available storage and the selected model pack.</string>
     <string name="voice_permission_denied" tools:ignore="MissingTranslation">Microphone access is needed to record. You can also import a WAV file.</string>
@@ -27,8 +27,8 @@
     <string name="voice_preview" tools:ignore="MissingTranslation">Preview</string>
     <string name="voice_use" tools:ignore="MissingTranslation">Use</string>
     <string name="voice_delete" tools:ignore="MissingTranslation">Delete</string>
-    <string name="voice_user" tools:ignore="MissingTranslation">User-added / cloned voice</string>
-    <string name="voice_pack" tools:ignore="MissingTranslation">Pack / legacy voice (protected)</string>
+    <string name="voice_user" tools:ignore="MissingTranslation">Custom voice</string>
+    <string name="voice_pack" tools:ignore="MissingTranslation">Built-in voice · protected</string>
     <string name="voice_delete_title" tools:ignore="MissingTranslation">Delete “%1$s”?</string>
     <string name="voice_delete_message" tools:ignore="MissingTranslation">This permanently removes the voice sample and its entry. This cannot be undone. Existing exported audio is kept.</string>
     <string name="voice_delete_failed" tools:ignore="MissingTranslation">Could not delete the voice. See Logcat for details.</string>
@@ -59,7 +59,7 @@
     <string name="reader_title" tools:ignore="MissingTranslation">Pocket TTS Reader</string>
     <string name="reader_subtitle" tools:ignore="MissingTranslation">Read long text aloud with your installed Pocket TTS voices. Everything stays on this device.</string>
     <string name="reader_hint" tools:ignore="MissingTranslation">Paste or type your text here…</string>
-    <string name="reader_document_info" tools:ignore="MissingTranslation">%1$d words · %2$d characters</string>
+    <string name="reader_document_info" tools:ignore="MissingTranslation">%1$s · %2$s</string>
     <string name="reader_clear" tools:ignore="MissingTranslation">Clear text</string>
     <string name="reader_play" tools:ignore="MissingTranslation">Play</string>
     <string name="reader_pause" tools:ignore="MissingTranslation">Pause</string>
@@ -88,23 +88,23 @@
     <string name="error_untrusted_document">Android did not grant safe read access to the selected document.</string>
     <string name="error_voice_too_large">The selected WAV file exceeds the 256 MiB limit.</string>
     <string name="voice">Voice</string>
-    <string name="import_reference_voice">Import reference voice (.wav)</string>
+    <string name="import_reference_voice">Import WAV</string>
     <string name="generation_parameters">Generation parameters</string>
     <string name="temperature_label">Temperature (0.0–2.0)</string>
     <string name="lsd_steps_label">LSD steps (1–8)</string>
     <string name="cpu_threads_label">CPU threads (1–8)</string>
     <string name="sentence_pause_label">Pause after sentence in ms (0–2000)</string>
     <string name="max_text_tokens_label">Maximum text tokens per segment (10–200)</string>
-    <string name="save_selection">Save selection and parameters</string>
+    <string name="save_selection">Save settings</string>
     <string name="open_android_tts">Open Android text-to-speech</string>
     <string name="about_app">About this app</string>
     <string name="reader_waveform">Generated speech waveform</string>
     <string name="import_review_title">Review imported WAV</string>
     <string name="import_review_help">Choose a 3–30 second section, then enhance it offline. Your original WAV stays unchanged. Skip trimming to keep the full sample.</string>
     <string name="trim_title" tools:ignore="MissingTranslation">Trim sample</string>
-    <string name="trim_use" tools:ignore="MissingTranslation">Use Trimmed Audio</string>
-    <string name="trim_skip" tools:ignore="MissingTranslation">Continue without trimming</string>
-    <string name="trim_help" tools:ignore="MissingTranslation">Drag the handles to keep one speaker. Fine-tune by 0.1 seconds. Your full original is preserved.</string>
+    <string name="trim_use" tools:ignore="MissingTranslation">Use selection</string>
+    <string name="trim_skip" tools:ignore="MissingTranslation">Keep full audio</string>
+    <string name="trim_help" tools:ignore="MissingTranslation">Select 3–30 seconds of one speaker.</string>
     <string name="trim_limits" tools:ignore="MissingTranslation">Select 3–30 seconds for preview and enhancement, or continue without trimming to keep the original.</string>
     <string name="trim_waveform" tools:ignore="MissingTranslation">Audio waveform with selected region and playback position</string>
     <string name="trim_start" tools:ignore="MissingTranslation">Start · %1$s</string>
@@ -115,7 +115,7 @@
     <string name="bundled_preparing" tools:ignore="MissingTranslation">Preparing built-in English speech… No download needed.</string>
     <string name="bundled_failed" tools:ignore="MissingTranslation">Could not prepare built-in speech. Check free storage and reopen the app. %1$s</string>
     <string name="trim_before" tools:ignore="MissingTranslation">Trimmed sample · Before denoising</string>
-    <string name="trim_use_before" tools:ignore="MissingTranslation">Use Trimmed Sample Without Enhancement</string>
+    <string name="trim_use_before" tools:ignore="MissingTranslation">Use without enhancement</string>
     <string name="about_title">About Pocket TTS</string>
     <string name="reader_edit" tools:ignore="MissingTranslation">Edit</string>
     <string name="reader_done_editing" tools:ignore="MissingTranslation">Done editing</string>
@@ -135,7 +135,6 @@
     <string name="invalid_parameters">Enter valid values within the indicated ranges.</string>
     <string name="status_saved">Saved: %1$s. The TTS engine will reload the model for the next text.</string>
     <string name="self_test_running">Pocket TTS self-test is running…</string>
-    <string name="self_test_success">Self-test successful: %1$d samples (%2$d s)</string>
     <string name="self_test_failed">Self-test failed: %1$s</string>
     <string name="error_no_model_voice">No language pack with a voice is installed</string>
     <string name="error_native_synthesis">Native synthesis reported an error</string>
@@ -147,11 +146,11 @@
     <string name="rec_unsaved" tools:ignore="MissingTranslation">Leaving this screen discards unsaved audio.</string>
     <string name="rec_permission_settings" tools:ignore="MissingTranslation">Open microphone permission settings</string>
     <string name="add_voice_help" tools:ignore="MissingTranslation">Create a voice from one speaker: record, import a WAV, or extract audio from a video.</string>
-    <string name="add_import_help" tools:ignore="MissingTranslation">Choose a WAV, trim and preview it, then name your voice. Sources can be up to 30 minutes and 256 MB.</string>
-    <string name="rec_guidance" tools:ignore="MissingTranslation">Speak naturally for 3–30 seconds in a quiet place. Use one speaker, with no music or background conversation.</string>
+    <string name="add_import_help" tools:ignore="MissingTranslation">WAV audio · up to 30 min / 256 MB</string>
+    <string name="rec_guidance" tools:ignore="MissingTranslation">Speak for 3–30 seconds in a quiet room. One speaker, with their permission.</string>
     <string name="rec_permission_required" tools:ignore="MissingTranslation">Microphone permission is required to record a sample.</string>
     <string name="rec_ready" tools:ignore="MissingTranslation">Ready to record</string>
-    <string name="rec_recording" tools:ignore="MissingTranslation">Recording · listening to your microphone</string>
+    <string name="rec_recording" tools:ignore="MissingTranslation">Recording</string>
     <string name="rec_processing" tools:ignore="MissingTranslation">Finishing WAV recording…</string>
     <string name="rec_saving" tools:ignore="MissingTranslation">Saving voice…</string>
     <string name="rec_allow_microphone" tools:ignore="MissingTranslation">Allow microphone</string>
@@ -159,11 +158,11 @@
     <string name="rec_review" tools:ignore="MissingTranslation">Review your sample</string>
     <string name="rec_review_help" tools:ignore="MissingTranslation">Listen before saving. To replace this sample, record again.</string>
     <string name="rec_waveform" tools:ignore="MissingTranslation">Live microphone amplitude waveform</string>
-    <string name="df_processing" tools:ignore="MissingTranslation">Noise reduction… DeepFilterNet3 runs offline on this device.</string>
+    <string name="df_processing" tools:ignore="MissingTranslation">Reducing noise offline…</string>
     <string name="df_before" tools:ignore="MissingTranslation">Original · Before denoising</string>
     <string name="df_after" tools:ignore="MissingTranslation">Enhanced · After denoising</string>
-    <string name="df_use_enhanced" tools:ignore="MissingTranslation">Use Enhanced Recording</string>
-    <string name="df_use_original" tools:ignore="MissingTranslation">Use Original Recording</string>
+    <string name="df_use_enhanced" tools:ignore="MissingTranslation">Use enhanced</string>
+    <string name="df_use_original" tools:ignore="MissingTranslation">Use original</string>
     <string name="df_failed" tools:ignore="MissingTranslation">Noise reduction failed. Your original recording is safe. Retry or use the original.</string>
     <string name="df_retry" tools:ignore="MissingTranslation">Retry noise reduction</string>
     <string name="df_saved_sources" tools:ignore="MissingTranslation">Saved recording comparison</string>

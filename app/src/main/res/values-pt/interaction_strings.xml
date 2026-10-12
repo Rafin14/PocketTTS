@@ -1,0 +1,7 @@
+<resources>
+    <string name="haptic_feedback">Resposta tátil</string>
+    <string name="haptic_feedback_hint">Resposta subtil para controlos e ações concluídas. Respeita as definições do Android.</string>
+    <string name="nav_drag_preview">Solte para ir para %1$s</string>
+    <string name="nav_drag_cancel">Solte para cancelar a navegação</string>
+    <string name="nav_drag_hint">Mantenha premido e deslize para outro separador</string>
+</resources>

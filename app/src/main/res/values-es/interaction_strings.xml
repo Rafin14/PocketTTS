@@ -1,0 +1,7 @@
+<resources>
+    <string name="haptic_feedback">Respuesta háptica</string>
+    <string name="haptic_feedback_hint">Respuesta sutil para controles y acciones completadas. Respeta los ajustes de Android.</string>
+    <string name="nav_drag_preview">Suelta para ir a %1$s</string>
+    <string name="nav_drag_cancel">Suelta para cancelar la navegación</string>
+    <string name="nav_drag_hint">Mantén pulsado y desliza a otra pestaña</string>
+</resources>

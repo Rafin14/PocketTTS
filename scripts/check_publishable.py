@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import zipfile
+from urllib.parse import unquote
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -47,6 +48,15 @@ def main():
             errors.append(f'Possible secret (review locally): {name}')
         if name != 'scripts/check_publishable.py' and personal.search(text):
             errors.append(f'Personal/local path: {name}')
+        if path.suffix.lower() == '.md':
+            if re.search(r'(?i)(\.local[/\\]|SOURCE_BASELINE|REDESIGN_REPORT|INSTRUMENTATION_STATUS|BUILD SUCCESSFUL|installed.{0,20}skill|rate.limit.{0,20}interrupt)', text):
+                errors.append(f'Internal work/evidence content in public Markdown: {name}')
+            # User guides and vendored documentation must not retain stale local links.
+            for link in re.findall(r'\]\(([^)]+)\)|src="([^"]+)"', text):
+                target = next(value for value in link if value).split('#')[0]
+                if target and not re.match(r'^[a-z][a-z0-9+.-]*:', target, re.I):
+                    if not (path.parent / unquote(target)).exists():
+                        errors.append(f'Broken Markdown link: {name} -> {target}')
     # Verify all local README Markdown links and HTML image sources.
     readme = (ROOT / 'README.md').read_text(encoding='utf-8')
     links = re.findall(r'\]\(([^)]+)\)|src="([^"]+)"', readme)

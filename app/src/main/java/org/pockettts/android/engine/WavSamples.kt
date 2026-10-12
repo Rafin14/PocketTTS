@@ -6,6 +6,10 @@ import java.io.File
 internal object WavSamples {
     init { System.loadLibrary("deepfilter_jni") }
     data class Info(val durationMs: Int, val peaks: List<Float>)
+    fun decode(file: File, startMs: Int, endMs: Int): FloatArray {
+        PcmWav.validateVoiceSample(file)
+        return nativeDecode(file.absolutePath, startMs, endMs)
+    }
     fun inspect(file: File, cancellation: java.util.concurrent.atomic.AtomicBoolean? = null): Info {
         PcmWav.validateVoiceSample(file)
         val data = nativeInspect(file.absolutePath, PcmWav.MAX_SOURCE_SECONDS, cancellation)

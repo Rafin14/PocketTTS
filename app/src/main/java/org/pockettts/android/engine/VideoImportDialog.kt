@@ -1,5 +1,8 @@
 package org.pockettts.android.engine
 
+import org.pockettts.android.engine.StudioButton as Button
+import org.pockettts.android.engine.StudioOutlinedButton as OutlinedButton
+
 import android.app.Activity
 import android.content.res.AssetFileDescriptor
 import android.graphics.SurfaceTexture
@@ -15,8 +18,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
@@ -99,16 +106,18 @@ internal class VideoImportDialog(
 
     @Composable
     fun Content() {
-        GlassSheet("Extract from Video", ::close, footer = {
+        GlassSheet(stringResource(R.string.ui_video_title), ::close, footer = {
             Button(onClick = ::extract, enabled = info != null && !extracting,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp).testTag("video-extract")) {
-                Text(if (extracting) "Extracting audio…" else "Extract audio & trim")
+                Text(stringResource(if (extracting) R.string.ui_video_extracting else R.string.ui_video_extract))
             }
         }) {
             item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(name, style = MaterialTheme.typography.titleMedium)
-                Text("Choose one speaker in the next step. Audio stays on this device. Up to 30 minutes / 256 MB of decoded audio.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.ui_video_limits), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 info?.let { Text("${audioTime(it.durationMs)} · ${it.audioMime}", style = MaterialTheme.typography.bodySmall) }
+                }
             }
             if (info != null && !extracting) item {
                 AndroidView(factory = { context -> TextureView(context).apply {
@@ -124,20 +133,24 @@ internal class VideoImportDialog(
                             return true
                         }
                     }
-                } }, modifier = Modifier.fillMaxWidth().aspectRatio(requireNotNull(info).aspectRatio.coerceIn(.25f, 4f)).testTag("video-preview"))
+                } }, modifier = Modifier.fillMaxWidth().aspectRatio(requireNotNull(info).aspectRatio.coerceIn(.25f, 4f))
+                    .clip(RoundedCornerShape(20.dp)).border(.75.dp, LocalGlass.current.border, RoundedCornerShape(20.dp)).testTag("video-preview"))
             }
             item {
+                Column(verticalArrangement = Arrangement.spacedBy(StudioTokens.ControlGap)) {
                 if (extracting || (info == null && error == null)) LinearProgressIndicator(Modifier.fillMaxWidth())
                 if (info != null && !extracting) {
                     if (player.state.key != null) PreviewControls(player)
-                    else OutlinedButton(onClick = { resumePosition = 0; prepare(true) }, modifier = Modifier.fillMaxWidth()) { Text("Play video") }
+                    else SampleTransport(player, active = false, duration = info!!.durationMs,
+                        start = { resumePosition = 0; prepare(true) }, seek = { resumePosition = it; prepare(false) }, stop = player::stop)
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("video-error")) }
                 if (error != null && !extracting && chooseAnother != null) OutlinedButton(
-                    onClick = { close(); chooseAnother.invoke() }, modifier = Modifier.fillMaxWidth().testTag("video-replace")) {
+                    onClick = { close(); chooseAnother.invoke() }, modifier = Modifier.testTag("video-replace")) {
                     Text("Choose another video")
                 }
-                TextButton(onClick = ::close, modifier = Modifier.fillMaxWidth()) { Text("Cancel / return to Voices") }
+                OutlinedButton(onClick = ::close, modifier = Modifier.fillMaxWidth()) { Text(stringResource(android.R.string.cancel)) }
+                }
             }
         }
     }

@@ -1,0 +1,7 @@
+<resources>
+    <string name="haptic_feedback">Haptic feedback</string>
+    <string name="haptic_feedback_hint">Subtle feedback for controls and completed actions. Respects Android settings.</string>
+    <string name="nav_drag_preview">Release to navigate to %1$s</string>
+    <string name="nav_drag_cancel">Release to cancel navigation</string>
+    <string name="nav_drag_hint">Hold, then slide to another tab</string>
+</resources>

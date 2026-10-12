@@ -17,28 +17,29 @@ import java.util.zip.ZipOutputStream
 /** Portable voice data only. No models, preferences, Reader audio or native caches. */
 internal object VoiceBackup {
     private const val FORMAT = "pockettts-voices"
-    private const val VERSION = 1
+    private const val VERSION = 2
     private const val MAX_VOICES = 1000
     private const val MAX_MANIFEST = 2L * 1024 * 1024
     private const val MAX_ARCHIVE_AUDIO = 4L * 1024 * 1024 * 1024
-    private val kinds = setOf("current", "original", "before", "enhanced")
+    private val kinds = setOf("current", "original", "before", "enhanced", "edit-base")
     data class Voice(val packId: String, val language: String, val precision: String,
                      val id: String, val name: String, val edited: Boolean, val audio: Map<String, File>,
-                     val sourceId: String = id)
+                     val sourceId: String = id, val edit: VoiceEdit? = null)
     data class Result(val voices: Int, val copies: Int = 0)
 
     fun export(context: Context, output: OutputStream, cancelled: () -> Boolean = { false },
                progress: (String) -> Unit = {}): Result = synchronized(PocketEngine) {
         val voices = ModelPackRepository.list(context).flatMap { pack ->
-            val records = JSONObject(pack.manifestFile.readText()).getJSONArray("voices")
+            val records = ManifestStorage.read(pack.manifestFile).getJSONArray("voices")
             val origins = (0 until records.length()).map { records.getJSONObject(it) }
                 .associate { it.getString("id") to it.optString("backupSourceId", it.getString("id")) }
             pack.voices.filter { it.userCreated }.map { voice ->
             val audio = linkedMapOf("current" to File(pack.voicesDir, voice.fileName), "original" to ModelPackRepository.originalSource(pack, voice))
             ModelPackRepository.recordingSource(pack, voice, false)?.let { audio["before"] = it }
             ModelPackRepository.recordingSource(pack, voice, true)?.let { audio["enhanced"] = it }
+            if (voice.edit?.source == "edit-base") audio["edit-base"] = ModelPackRepository.editingSource(pack, voice)
             val origin = origins[voice.id] ?: voice.id
-            Voice(pack.id, pack.languageTag, pack.precision, voice.id, voice.displayName, voice.audioEdited, audio, origin)
+            Voice(pack.id, pack.languageTag, pack.precision, voice.id, voice.displayName, voice.audioEdited, audio, origin, voice.edit)
         } }
         require(voices.size <= MAX_VOICES) { "A backup supports up to $MAX_VOICES voices. Export fewer voices." }
         var total = 0L
@@ -56,7 +57,8 @@ internal object VoiceBackup {
                 audio.put(kind, JSONObject().put("path", path).put("bytes", file.length()).put("sha256", hash(file, cancelled)))
             }
             items.put(JSONObject().put("id", voice.id).put("sourceId", voice.sourceId).put("name", voice.name).put("packId", voice.packId)
-                .put("languageTag", voice.language).put("precision", voice.precision).put("audioEdited", voice.edited).put("audio", audio))
+                .put("languageTag", voice.language).put("precision", voice.precision).put("audioEdited", voice.edited).put("audio", audio)
+                .put("edit", voice.edit?.json() ?: JSONObject.NULL))
             progress("Preparing voice ${index + 1} of ${voices.size}")
         }
         val manifest = JSONObject().put("format", FORMAT).put("version", VERSION).put("appVersion", BuildConfig.VERSION_NAME)
@@ -95,8 +97,8 @@ internal object VoiceBackup {
                     val entry = directory.nextElement()
                     val path = entry.name
                     require(!entry.isDirectory && path !in entries && (path == "manifest.json" ||
-                        Regex("voices/[0-9]{1,4}/(current|original|before|enhanced)\\.wav").matches(path))) { "Unsafe or unexpected backup entry." }
-                    require(entries.size < MAX_VOICES * 4 + 1) { "Too many backup entries." }
+                        Regex("voices/[0-9]{1,4}/(current|original|before|enhanced|edit-base)\\.wav").matches(path))) { "Unsafe or unexpected backup entry." }
+                    require(entries.size < MAX_VOICES * 5 + 1) { "Too many backup entries." }
                     // Never use an archive pathname as a filesystem target.
                     val target = File(staging, "${entries.size}.data")
                     val limit = if (path == "manifest.json") MAX_MANIFEST else PcmWav.MAX_VOICE_BYTES
@@ -112,7 +114,7 @@ internal object VoiceBackup {
             }
             val root = requireNotNull(metadata) { "Not a Pocket TTS voice backup: manifest missing." }
             require(root.getString("format") == FORMAT) { "Not a Pocket TTS voice backup." }
-            require(root.getInt("version") == VERSION) { "Unsupported voice backup version. Update the app before importing." }
+            require(root.getInt("version") in 1..VERSION) { "Unsupported voice backup version. Update the app before importing." }
             require(root.getString("referenceFormat") == "wav") { "Unsupported voice reference format." }
             val array = root.getJSONArray("voices")
             require(array.length() in 0..MAX_VOICES && root.getInt("voiceCount") == array.length()) { "Invalid backup voice count." }
@@ -141,8 +143,14 @@ internal object VoiceBackup {
                     check(!cancelled()) { "Import cancelled" }
                     file
                 }
+                val edit = VoiceEdit.read(item.optJSONObject("edit"))
+                require(edit?.source != "edit-base" || "edit-base" in sources) { "Missing audio editing source" }
+                edit?.let { recipe ->
+                    val source = sources.getValue(if (recipe.source == "edit-base") "edit-base" else "original")
+                    require(recipe.endMs <= WavSamples.inspect(source).durationMs) { "Invalid saved audio selection" }
+                }
                 Voice(packId, item.getString("languageTag"), item.getString("precision"), id, name,
-                    item.getBoolean("audioEdited"), sources, sourceId)
+                    item.getBoolean("audioEdited"), sources, sourceId, edit)
             }
             require(used == entries.keys) { "Backup contains unreferenced data." }
             check(!cancelled()) { "Import cancelled" }

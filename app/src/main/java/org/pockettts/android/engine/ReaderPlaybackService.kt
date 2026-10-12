@@ -23,11 +23,15 @@ class ReaderPlaybackService : Service() {
         val title: String = "Pocket TTS Reader", val exporting: Boolean = false,
         val document: String? = null, val rangeStart: Int = -1, val rangeEnd: Int = -1,
         val waveform: List<Float> = emptyList(), val waveformBinSamples: Long = 0, val waveformSamples: Long = 0,
-        val canPrevious: Boolean = false, val canNext: Boolean = false
+        val canPrevious: Boolean = false, val canNext: Boolean = false,
+        val gainVoiceKey: String? = null, val effectiveGainDb: Float? = null
     )
     interface Listener { fun onReaderStateChanged(snapshot: Snapshot) }
     inner class LocalBinder : Binder() { fun service() = this@ReaderPlaybackService }
     private class Session(val directory: File, val title: String, var speed: Float, val document: String) {
+        var voiceKey: String? = null
+        var gainDb = 0f
+        var effectiveGainDb: Float? = 0f
         val cancelled = AtomicBoolean(false)
         val files = mutableListOf<File>() // Main thread only; worker posts completed files.
         val timeline = AudioTimeline()
@@ -40,6 +44,9 @@ class ReaderPlaybackService : Service() {
     }
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
+    private val gainWorker = Executors.newSingleThreadExecutor()
+    @Volatile private var gainRevision = 0L
+    private var gainedFile: File? = null
     private val listeners = mutableSetOf<Listener>()
     private var session: Session? = null
     private var player: MediaPlayer? = null
@@ -123,6 +130,8 @@ class ReaderPlaybackService : Service() {
         val next = Session(File(cacheDir, "reader-audio/${UUID.randomUUID()}"),
             text.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(64) ?: "Pocket TTS Reader", speed.coerceIn(.5f, 2f), text)
         session = next
+        next.voiceKey = ModelPackRepository.voiceName(pack, voice)
+        next.gainDb = ReaderGain.get(this, requireNotNull(next.voiceKey))
         next.ranges += ReaderTextChunker.ranges(text, (ModelPackRepository.maxTextTokens(this, pack) * 4).coerceIn(120, 800))
         next.total = next.ranges.size
         playWhenReady = true
@@ -202,12 +211,32 @@ class ReaderPlaybackService : Service() {
             return
         }
         state = if (playWhenReady) State.LOADING else State.PAUSED
+        if (s.gainDb != 0f) {
+            val revision = gainRevision
+            val db = s.gainDb
+            val dry = s.files[next]
+            val target = File(s.directory, "gain-${UUID.randomUUID()}.wav")
+            gainWorker.execute {
+                val result = runCatching { ReaderGain.render(dry, target, db) { gainRevision != revision } }
+                main.post {
+                    if (destroyed || session !== s || gainRevision != revision) { target.delete(); return@post }
+                    if (result.isSuccess) { s.effectiveGainDb = PcmGain.db(result.getOrThrow()); gainedFile = target; prepareChunk(s, next, target) }
+                    else { target.delete(); fail(getString(R.string.reader_error_output)) }
+                }
+            }
+            publish()
+            return
+        }
+        s.effectiveGainDb = 0f
+        prepareChunk(s, next, s.files[next])
+    }
+    private fun prepareChunk(s: Session, next: Int, source: File) {
         try {
             val audio = MediaPlayer()
             player = audio
             audio.setAudioAttributes(attributes)
             audio.setWakeMode(this, PowerManager.PARTIAL_WAKE_LOCK)
-            audio.setDataSource(s.files[next].absolutePath)
+            audio.setDataSource(source.absolutePath)
             audio.setOnPreparedListener {
                 if (player !== it) return@setOnPreparedListener
                 prepared = true
@@ -225,6 +254,17 @@ class ReaderPlaybackService : Service() {
             audio.prepareAsync()
         } catch (error: Exception) { Log.e("PocketTTS", "READER_OPEN_FAILED", error); fail(getString(R.string.reader_error_output)) }
         publish()
+    }
+    internal fun setVoiceGain(key: String, db: Float) {
+        if (destroyed) return
+        val s = session ?: return
+        if (s.voiceKey != key || s.gainDb == db) return
+        s.gainDb = db
+        s.effectiveGainDb = null
+        if (index in s.files.indices && state in listOf(State.PLAYING, State.PAUSED, State.LOADING)) {
+            val position = if (prepared) runCatching { player?.currentPosition?.toLong() ?: offsetMs }.getOrDefault(offsetMs) else offsetMs
+            openChunk(index, position)
+        }
     }
     private fun completeChunk(s: Session, completed: MediaPlayer, chunk: Int) {
         if (player === completed && session === s && index == chunk && prepared && !seeking) openChunk(chunk + 1)
@@ -334,7 +374,7 @@ class ReaderPlaybackService : Service() {
             s?.timeline?.duration ?: 0, s?.complete ?: false, s?.title ?: "Pocket TTS Reader", exporting,
             s?.document, range?.start ?: -1, range?.end ?: -1,
             if (state == State.STOPPED || state == State.ERROR) emptyList() else s?.peaks ?: emptyList(), s?.binSamples ?: 0, s?.samples ?: 0,
-            navigable && index > 0, navigable && index + 1 < (s?.total ?: 0))
+            navigable && index > 0, navigable && index + 1 < (s?.total ?: 0), s?.voiceKey, s?.effectiveGainDb)
     }
     @android.annotation.SuppressLint("NotificationPermission") // MediaStyle notifications with a session token are exempt on Android 13+.
     private fun publish(notification: Boolean = true) {
@@ -401,9 +441,11 @@ class ReaderPlaybackService : Service() {
     }
     private fun abandonFocus() { focus?.let { getSystemService(AudioManager::class.java).abandonAudioFocusRequest(it) }; focus = null }
     private fun releasePlayer() {
+        gainRevision++
         val old = player
         player = null; prepared = false; seeking = false
         old?.release()
+        gainedFile?.delete(); gainedFile = null
     }
     private fun fail(message: String) {
         session?.cancelled?.set(true); playWhenReady = false
@@ -425,7 +467,7 @@ class ReaderPlaybackService : Service() {
     override fun onDestroy() {
         stop(); destroyed = true
         main.removeCallbacks(tick); main.removeCallbacks(stopUnused); unregisterReceiver(noisyReceiver); mediaSession.release(); listeners.clear()
-        disposeSession(); worker.shutdown()
+        disposeSession(); worker.shutdown(); gainWorker.shutdown()
         super.onDestroy()
     }
     private companion object {
